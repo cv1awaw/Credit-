@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
 
 # Special User ID
-SPECIAL_USER_ID = 6177929931  # Ensure this is an integer
+SPECIAL_USER_ID = 7354567881  # Ensure this is an integer
 
 # Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
