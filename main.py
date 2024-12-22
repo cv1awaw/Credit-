@@ -27,6 +27,9 @@ USER_ID_WAITING_FOR_MESSAGE = 3
 SPECIAL_USER_ID = 6733595501  # User to receive messages from /user_id command
 AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id command
 
+# Keyboard layout
+REPLY_KEYBOARD = [['حساب غياب النظري', 'حساب غياب العملي']]
+
 # Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
@@ -34,8 +37,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     # Log the user ID for debugging
     logger.info(f"User {user.username or 'No Username'} with ID {user_id} started the bot.")
-
-    reply_keyboard = [['حساب غياب النظري', 'حساب غياب العملي']]
 
     if user_id == SPECIAL_USER_ID:
         # Personalized welcome message for the special user
@@ -51,7 +52,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
         welcome_message,
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, resize_keyboard=True
+            REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
         )
     )
     return CHOOSING_OPTION
@@ -82,7 +83,7 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text(
             "اختيار غير معروف. الرجاء الاختيار من الأزرار.",
             reply_markup=ReplyKeyboardMarkup(
-                [['حساب غياب النظري', 'حساب غياب العملي']], resize_keyboard=True
+                REPLY_KEYBOARD, resize_keyboard=True
             )
         )
         return CHOOSING_OPTION
@@ -144,13 +145,15 @@ async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     if text:
         try:
             await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=text)
-            await update.message.reply_text(f"Message sent: {text}")
+            await update.message.reply_text(f"Message sent: {text}", reply_markup=ReplyKeyboardMarkup(
+                REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
+            ))
             logger.info(f"Message from user ID {user_id} sent to SPECIAL_USER_ID {SPECIAL_USER_ID}.")
         except Exception as e:
             logger.error(f"Failed to send message to SPECIAL_USER_ID {SPECIAL_USER_ID}: {e}")
-            await update.message.reply_text("Message didn't sent.")
+            await update.message.reply_text("Message didn't send. Please try again later.")
     else:
-        await update.message.reply_text("Message didn't sent.")
+        await update.message.reply_text("Message didn't send. Please provide valid text.")
 
     return ConversationHandler.END
 
@@ -169,6 +172,27 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         reply_markup=ReplyKeyboardRemove()
     )
     return ConversationHandler.END
+
+# Default handler for any other messages
+async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    user_id = user.id
+
+    reply_keyboard = [['حساب غياب النظري', 'حساب غياب العملي']]
+
+    if user_id == SPECIAL_USER_ID:
+        welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
+    else:
+        welcome_message = (
+            "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^"
+        )
+
+    await update.message.reply_text(
+        welcome_message,
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True, resize_keyboard=True
+        )
+    )
 
 def main():
     # Retrieve the bot token from environment variables
@@ -213,9 +237,13 @@ def main():
         allow_reentry=True
     )
 
+    # Define a general MessageHandler to handle all other messages
+    general_handler = MessageHandler(filters.ALL & ~filters.COMMAND, default_handler)
+
     # Add handlers to the application
     application.add_handler(conv_handler)
     application.add_handler(user_id_conv_handler)
+    application.add_handler(general_handler)  # This should be added last
 
     # Start the bot
     application.run_polling()
