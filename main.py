@@ -75,7 +75,7 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     elif text == 'حساب غياب العملي':
         await update.message.reply_text(
-            "ارسل ركدت العملي",
+            "ارسل كردت العملي",
             reply_markup=ReplyKeyboardMarkup(
                 [['العودة للقائمة الرئيسية']], resize_keyboard=True, one_time_keyboard=True
             )
