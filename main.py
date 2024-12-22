@@ -36,7 +36,10 @@ reply_markup_back = ReplyKeyboardMarkup(
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 if not BOT_TOKEN:
+    logger.error("No BOT_TOKEN provided. Please set the BOT_TOKEN environment variable.")
     raise ValueError("No BOT_TOKEN provided. Please set the BOT_TOKEN environment variable.")
+
+logger.info("BOT_TOKEN successfully retrieved from environment variables.")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Send welcome message and show main keyboard."""
