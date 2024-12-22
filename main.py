@@ -20,10 +20,7 @@ logger = logging.getLogger(__name__)
 # Define states for ConversationHandler
 CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
 
-# Define additional states for /user_id command
-USER_ID_WAITING_FOR_MESSAGE = 3
-
-# Special User IDs
+# Define constants for user IDs
 SPECIAL_USER_ID = 6733595501  # User to receive messages from /user_id command
 AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id command
 
@@ -121,7 +118,7 @@ async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return GET_PRACTICAL_CREDIT
 
 # Handler for /user_id command
-async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     user_id = user.id
 
@@ -129,41 +126,23 @@ async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     if user_id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
-        return ConversationHandler.END
+        return
 
-    await update.message.reply_text(
-        "Please send your message.",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    return USER_ID_WAITING_FOR_MESSAGE
-
-# Handler for processing the user's message in /user_id conversation
-async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = update.message.text
-    user_id = update.effective_user.id
-
-    if text:
+    # Extract the message from the command arguments
+    if context.args:
+        message = ' '.join(context.args)
         try:
-            await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=text)
-            await update.message.reply_text(f"Message sent: {text}", reply_markup=ReplyKeyboardMarkup(
-                REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
-            ))
+            await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=message)
+            await update.message.reply_text(f"The message has been sent to user ID {SPECIAL_USER_ID}.")
             logger.info(f"Message from user ID {user_id} sent to SPECIAL_USER_ID {SPECIAL_USER_ID}.")
         except Exception as e:
             logger.error(f"Failed to send message to SPECIAL_USER_ID {SPECIAL_USER_ID}: {e}")
-            await update.message.reply_text("Message didn't send. Please try again later.")
+            await update.message.reply_text("Failed to send the message. Please try again later.")
     else:
-        await update.message.reply_text("Message didn't send. Please provide valid text.")
+        await update.message.reply_text("Please provide a message to send. Usage: /user_id Your message here")
 
-    return ConversationHandler.END
-
-# Fallback handler for /user_id conversation
-async def user_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text(
-        "تم إلغاء العملية. للبدء من جديد، ارسل /start",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    return ConversationHandler.END
+# Fallback handler for /user_id conversation (no longer needed since /user_id is a standalone command)
+# Therefore, we can remove any ConversationHandler related to /user_id
 
 # Fallback handler for main conversation
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -178,8 +157,6 @@ async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     user = update.effective_user
     user_id = user.id
 
-    reply_keyboard = [['حساب غياب النظري', 'حساب غياب العملي']]
-
     if user_id == SPECIAL_USER_ID:
         welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
     else:
@@ -190,7 +167,7 @@ async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await update.message.reply_text(
         welcome_message,
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, resize_keyboard=True
+            REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
         )
     )
 
@@ -205,7 +182,7 @@ def main():
     # Initialize the bot application
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # Define the main ConversationHandler
+    # Define the main ConversationHandler for /start command
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
@@ -225,25 +202,16 @@ def main():
         allow_reentry=True
     )
 
-    # Define the ConversationHandler for /user_id command
-    user_id_conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('user_id', user_id_command)],
-        states={
-            USER_ID_WAITING_FOR_MESSAGE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, user_message_handler)
-            ],
-        },
-        fallbacks=[CommandHandler('cancel', user_cancel)],
-        allow_reentry=True
-    )
+    # Define the CommandHandler for /user_id command
+    user_id_handler = CommandHandler('user_id', user_id_command)
 
-    # Define a general MessageHandler to handle all other messages
+    # Define a general MessageHandler to handle all other non-command messages
     general_handler = MessageHandler(filters.ALL & ~filters.COMMAND, default_handler)
 
-    # Add handlers to the application
+    # Add handlers to the application in the correct order
     application.add_handler(conv_handler)
-    application.add_handler(user_id_conv_handler)
-    application.add_handler(general_handler)  # This should be added last
+    application.add_handler(user_id_handler)
+    application.add_handler(general_handler)  # This should be added last to avoid overriding
 
     # Start the bot
     application.run_polling()
