@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
 
 # Define constants for user IDs
-SPECIAL_USER_ID = 6733595501  # User to receive messages from /user_id command
+SPECIAL_USER_ID = 6177929931  # User to receive messages from /user_id command
 AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id command
 
 # Keyboard layout
@@ -37,12 +37,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     if user_id == SPECIAL_USER_ID:
         # Personalized welcome message for the special user
-        welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
+        welcome_message = (
+            "اهلا زهراء في البوت مالتي🌹\n"
+            "اتمنى تستفادين منه ۸۸\n\n"
+            "اضغطي /start حتى يشتغل"
+        )
         logger.info(f"Sending personalized message to user ID {user_id}.")
     else:
         # Default welcome message for other users
         welcome_message = (
-            "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^"
+            "السلام عليكم \n"
+            "البوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^\n\n"
+            "اضغط /start حتى يشتغل البوت"
         )
         logger.info(f"Sending default message to user ID {user_id}.")
 
@@ -141,9 +147,6 @@ async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     else:
         await update.message.reply_text("Please provide a message to send. Usage: /user_id Your message here")
 
-# Fallback handler for /user_id conversation (no longer needed since /user_id is a standalone command)
-# Therefore, we can remove any ConversationHandler related to /user_id
-
 # Fallback handler for main conversation
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
@@ -158,10 +161,16 @@ async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     user_id = user.id
 
     if user_id == SPECIAL_USER_ID:
-        welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
+        welcome_message = (
+            "اهلا زهراء في البوت مالتي🌹\n"
+            "اتمنى تستفادين منه ۸۸\n\n"
+            "اضغطي /start حتى يشتغل"
+        )
     else:
         welcome_message = (
-            "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^"
+            "السلام عليكم \n"
+            "البوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^\n\n"
+            "اضغط /start حتى يشتغل البوت"
         )
 
     await update.message.reply_text(
