@@ -39,7 +39,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         # Personalized welcome message for the special user
         welcome_message = (
             "اهلا زهراء في البوت مالتي🌹\n"
-            "اتمنى تستفادين منه ۸۸\n\n"
+            "اتمنى تستفادين منه ^^\n\n"
             "اضغطي /start حتى يشتغل"
         )
         logger.info(f"Sending personalized message to user ID {user_id}.")
