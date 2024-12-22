@@ -1,16 +1,16 @@
-import os
 import logging
+import os
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     MessageHandler,
+    filters,
     ContextTypes,
     ConversationHandler,
-    filters,
 )
 
-# Configure logging
+# Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -18,146 +18,125 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Define states for ConversationHandler
-CHOOSING, TYPING_CREDIT = range(2)
+CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
 
-# Keyboard options
-keyboard_main = [['نظرية', 'عملية']]
-keyboard_back = [['رجوع']]
-
-reply_markup_main = ReplyKeyboardMarkup(
-    keyboard_main, one_time_keyboard=True, resize_keyboard=True
-)
-
-reply_markup_back = ReplyKeyboardMarkup(
-    keyboard_back, one_time_keyboard=True, resize_keyboard=True
-)
-
-# Fetch Bot Token from environment variables
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-if not BOT_TOKEN:
-    logger.error("No BOT_TOKEN provided. Please set the BOT_TOKEN environment variable.")
-    raise ValueError("No BOT_TOKEN provided. Please set the BOT_TOKEN environment variable.")
-
-logger.info("BOT_TOKEN successfully retrieved from environment variables.")
-
+# Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Send welcome message and show main keyboard."""
+    reply_keyboard = [['حساب غياب النظري', 'حساب غياب العملي']]
     await update.message.reply_text(
-        "السلام عليكم تم انشاء البوت بواسطة @iwanna2die لمساعدة الطلاب في حساب الكردت",
-        reply_markup=reply_markup_main,
+        "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^",
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True, resize_keyboard=True
+        )
     )
-    return CHOOSING
+    return CHOOSING_OPTION
 
-async def choosing(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Handle user's choice between Theory and Practical."""
-    choice = update.message.text
-    if choice == 'نظرية':  # Theory
+# Handler for choosing option
+async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text
+
+    if text == 'حساب غياب النظري':
         await update.message.reply_text(
-            "ارسل كردت المادة",
-            reply_markup=ReplyKeyboardRemove(),
+            "ارسل كردت مادة النظري",
+            reply_markup=ReplyKeyboardMarkup(
+                [['العودة للقائمة الرئيسية']], resize_keyboard=True, one_time_keyboard=True
+            )
         )
-        context.user_data['mode'] = 'theory'
-        return TYPING_CREDIT
-    elif choice == 'عملية':  # Practical
+        return GET_THEORETICAL_CREDIT
+
+    elif text == 'حساب غياب العملي':
         await update.message.reply_text(
-            "ارسل كردت المادة",
-            reply_markup=ReplyKeyboardRemove(),
+            "ارسل ركدت العملي",
+            reply_markup=ReplyKeyboardMarkup(
+                [['العودة للقائمة الرئيسية']], resize_keyboard=True, one_time_keyboard=True
+            )
         )
-        context.user_data['mode'] = 'practical'
-        return TYPING_CREDIT
+        return GET_PRACTICAL_CREDIT
+
     else:
-        # If user sends something else, resend the welcome message
         await update.message.reply_text(
-            "السلام عليكم تم انشاء البوت بواسطة @iwanna2die لمساعدة الطلاب في حساب الكردت",
-            reply_markup=reply_markup_main,
+            "اختيار غير معروف. الرجاء الاختيار من الأزرار.",
+            reply_markup=ReplyKeyboardMarkup(
+                [['حساب غياب النظري', 'حساب غياب العملي']], resize_keyboard=True
+            )
         )
-        return CHOOSING
+        return CHOOSING_OPTION
 
-async def received_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Process the credit number and send calculation."""
-    credit_text = update.message.text
+# Handler for theoretical credit input
+async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text
+
+    if text == 'العودة للقائمة الرئيسية':
+        return await start(update, context)
+
     try:
-        credit = float(credit_text)
+        credit = float(text)
+        result = credit * 8 * 0.23
+        await update.message.reply_text(f"{result}")
+        return await start(update, context)
     except ValueError:
-        await update.message.reply_text(
-            "الرجاء ارسال رقم صحيح للكردت.",
-            reply_markup=ReplyKeyboardRemove(),
-        )
-        return TYPING_CREDIT
+        await update.message.reply_text("الرجاء إرسال رقم صحيح أو العودة للقائمة الرئيسية.")
+        return GET_THEORETICAL_CREDIT
 
-    mode = context.user_data.get('mode')
+# Handler for practical credit input
+async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text
 
-    if mode == 'theory':
-        number = credit * 8 * 0.23
-    elif mode == 'practical':
-        number = credit * 8 * 0.1176470588
-    else:
-        # If mode is not set, restart the conversation
-        await update.message.reply_text(
-            "حدث خطأ. يرجى المحاولة مرة أخرى.",
-            reply_markup=reply_markup_main,
-        )
-        return CHOOSING
+    if text == 'العودة للقائمة الرئيسية':
+        return await start(update, context)
 
-    # Send the final number
+    try:
+        credit = float(text)
+        result = credit * 8 * 0.1176470588
+        await update.message.reply_text(f"{result}")
+        return await start(update, context)
+    except ValueError:
+        await update.message.reply_text("الرجاء إرسال رقم صحيح أو العودة للقائمة الرئيسية.")
+        return GET_PRACTICAL_CREDIT
+
+# Fallback handler for /cancel command
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
-        f"{number}",
-        reply_markup=reply_markup_back,
+        "تم إلغاء العملية. للبدء من جديد، ارسل /start",
+        reply_markup=ReplyKeyboardRemove()
     )
-    return CHOOSING
-
-async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Handle the Back button to return to main menu."""
-    await update.message.reply_text(
-        "اختر نوع الحساب:",
-        reply_markup=reply_markup_main,
-    )
-    return CHOOSING
-
-async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Handle unknown messages."""
-    await update.message.reply_text(
-        "السلام عليكم تم انشاء البوت بواسطة @iwanna2die لمساعدة الطلاب في حساب الكردت",
-        reply_markup=reply_markup_main,
-    )
-    return CHOOSING
+    return ConversationHandler.END
 
 def main():
-    """Start the bot."""
-    try:
-        application = ApplicationBuilder().token(BOT_TOKEN).build()
-    except Exception as e:
-        logger.error(f"Failed to build application: {e}")
-        raise e
+    # Retrieve the bot token from environment variables
+    BOT_TOKEN = os.environ.get("BOT_TOKEN")
+    
+    if not BOT_TOKEN:
+        logger.error("BOT_TOKEN environment variable not set.")
+        exit(1)
 
+    # Initialize the bot application
+    application = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    # Define the ConversationHandler
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start), MessageHandler(filters.TEXT & ~filters.COMMAND, start)],
+        entry_points=[CommandHandler('start', start)],
         states={
-            CHOOSING: [
-                MessageHandler(filters.Regex('^(نظرية|عملية)$'), choosing)
+            CHOOSING_OPTION: [
+                MessageHandler(
+                    filters.Regex('^(حساب غياب النظري|حساب غياب العملي)$'), choice_handler
+                )
             ],
-            TYPING_CREDIT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, received_credit)
+            GET_THEORETICAL_CREDIT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, theoretical_credit)
+            ],
+            GET_PRACTICAL_CREDIT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, practical_credit)
             ],
         },
-        fallbacks=[
-            MessageHandler(filters.Regex('^رجوع$'), back_to_main),
-            MessageHandler(filters.COMMAND, unknown),
-            MessageHandler(filters.ALL, unknown),
-        ],
-        allow_reentry=True,
+        fallbacks=[CommandHandler('cancel', cancel)],
+        allow_reentry=True
     )
 
     application.add_handler(conv_handler)
-    application.add_handler(MessageHandler(filters.ALL, unknown))
 
-    try:
-        logger.info("Bot is starting...")
-        application.run_polling()
-    except Exception as e:
-        logger.error(f"Error during polling: {e}")
-        raise e
+    # Start the bot
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
