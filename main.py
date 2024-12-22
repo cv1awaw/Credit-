@@ -38,9 +38,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if user_id == SPECIAL_USER_ID:
         # Personalized welcome message for the special user
         welcome_message = (
-            "اهلا زهراء في البوت مالتي🌹\n"
+            "اهلا زهراء في البوت مالتي 🌹\n"
             "اتمنى تستفادين منه ^^\n\n"
-            "اضغطي /start حتى يشتغل"
+            "اضغطي /start حتى يشتغل البوت "
         )
         logger.info(f"Sending personalized message to user ID {user_id}.")
     else:
@@ -48,7 +48,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         welcome_message = (
             "السلام عليكم \n"
             "البوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^\n\n"
-            "اضغط /start حتى يشتغل البوت"
+            "اضغط /start حتى يشتغل البوت "
         )
         logger.info(f"Sending default message to user ID {user_id}.")
 
@@ -162,15 +162,15 @@ async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     if user_id == SPECIAL_USER_ID:
         welcome_message = (
-            "اهلا زهراء في البوت مالتي🌹\n"
-            "اتمنى تستفادين منه ۸۸\n\n"
-            "اضغطي /start حتى يشتغل"
+            "اهلا زهراء في البوت مالتي 🌹\n"
+            "اتمنى تستفادين منه ^^\n\n"
+            "اضغطي /start حتى يشتغل البوت "
         )
     else:
         welcome_message = (
             "السلام عليكم \n"
             "البوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^\n\n"
-            "اضغط /start حتى يشتغل البوت"
+            "اضغط /start حتى يشتغل البوت "
         )
 
     await update.message.reply_text(
