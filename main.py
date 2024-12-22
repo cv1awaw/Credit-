@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
 
 # Special User ID
-SPECIAL_USER_ID = 6177929931  # Ensure this is an integer, not a string
+SPECIAL_USER_ID = 6177929931  # Ensure this is an integer
 
 # Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -29,13 +29,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = user.id
 
     # Log the user ID for debugging
-    logger.info(f"User {user.username} with ID {user_id} started the bot.")
+    logger.info(f"User {user.username or 'No Username'} with ID {user_id} started the bot.")
 
     reply_keyboard = [['حساب غياب النظري', 'حساب غياب العملي']]
 
     if user_id == SPECIAL_USER_ID:
         # Personalized welcome message for the special user
-        welcome_message = "اهلا زهراء في البوت مالتي 🌹"
+        welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
         logger.info(f"Sending personalized message to user ID {user_id}.")
     else:
         # Default welcome message for other users
