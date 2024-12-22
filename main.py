@@ -20,11 +20,27 @@ logger = logging.getLogger(__name__)
 # Define states for ConversationHandler
 CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
 
+# Special User ID
+SPECIAL_USER_ID = 6177929931  # Replace with the actual user ID if necessary
+
 # Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    user_id = user.id
+
     reply_keyboard = [['حساب غياب النظري', 'حساب غياب العملي']]
+
+    if user_id == SPECIAL_USER_ID:
+        # Personalized welcome message for the special user
+        welcome_message = "اهلا زهراء في البوت مالتي 🌹"
+    else:
+        # Default welcome message for other users
+        welcome_message = (
+            "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^"
+        )
+
     await update.message.reply_text(
-        "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^",
+        welcome_message,
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True, resize_keyboard=True
         )
