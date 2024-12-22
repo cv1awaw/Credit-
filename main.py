@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
 
 # Define constants for user IDs
-SPECIAL_USER_ID = 6733595501  # User to receive messages from /user_id command
+SPECIAL_USER_ID = 7354567881  # User to receive messages from /user_id command
 AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id command
 
 # Keyboard layout
