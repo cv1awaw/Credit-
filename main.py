@@ -24,8 +24,8 @@ CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
 USER_ID_WAITING_FOR_MESSAGE = 3
 
 # Special User IDs
-SPECIAL_USER_ID = 6733595501  # Ensure this is an integer
-AUTHORIZED_USER_ID = 6177929931  # User ID for /user_id command
+SPECIAL_USER_ID = 6733595501  # User to receive messages from /user_id command
+AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id command
 
 # Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -136,12 +136,19 @@ async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
     return USER_ID_WAITING_FOR_MESSAGE
 
-# Handler for processing the user's message
+# Handler for processing the user's message in /user_id conversation
 async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
+    user_id = update.effective_user.id
 
     if text:
-        await update.message.reply_text(f"Message sent: {text}")
+        try:
+            await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=text)
+            await update.message.reply_text(f"Message sent: {text}")
+            logger.info(f"Message from user ID {user_id} sent to SPECIAL_USER_ID {SPECIAL_USER_ID}.")
+        except Exception as e:
+            logger.error(f"Failed to send message to SPECIAL_USER_ID {SPECIAL_USER_ID}: {e}")
+            await update.message.reply_text("Message didn't sent.")
     else:
         await update.message.reply_text("Message didn't sent.")
 
