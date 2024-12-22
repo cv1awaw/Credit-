@@ -20,12 +20,12 @@ logger = logging.getLogger(__name__)
 # Define states for ConversationHandler
 CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
 
-# Define additional states for -user_id command
+# Define additional states for /user_id command
 USER_ID_WAITING_FOR_MESSAGE = 3
 
 # Special User IDs
 SPECIAL_USER_ID = 6733595501  # Ensure this is an integer
-AUTHORIZED_USER_ID = 6177929931  # User ID for -user_id command
+AUTHORIZED_USER_ID = 6177929931  # User ID for /user_id command
 
 # Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -119,12 +119,12 @@ async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.message.reply_text("الرجاء إرسال رقم صحيح أو العودة للقائمة الرئيسية.")
         return GET_PRACTICAL_CREDIT
 
-# Handler for -user_id command
+# Handler for /user_id command
 async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     user_id = user.id
 
-    logger.info(f"User {user.username or 'No Username'} with ID {user_id} invoked -user_id command.")
+    logger.info(f"User {user.username or 'No Username'} with ID {user_id} invoked /user_id command.")
 
     if user_id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
@@ -147,7 +147,7 @@ async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
     return ConversationHandler.END
 
-# Fallback handler for -user_id conversation
+# Fallback handler for /user_id conversation
 async def user_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
         "تم إلغاء العملية. للبدء من جديد، ارسل /start",
@@ -194,9 +194,9 @@ def main():
         allow_reentry=True
     )
 
-    # Define the ConversationHandler for -user_id command
+    # Define the ConversationHandler for /user_id command
     user_id_conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('-user_id', user_id_command)],
+        entry_points=[CommandHandler('user_id', user_id_command)],
         states={
             USER_ID_WAITING_FOR_MESSAGE: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, user_message_handler)
