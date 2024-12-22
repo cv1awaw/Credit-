@@ -1,4 +1,5 @@
 import os
+import logging
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     ApplicationBuilder,
@@ -8,6 +9,13 @@ from telegram.ext import (
     ConversationHandler,
     filters,
 )
+
+# Configure logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 # Define states for ConversationHandler
 CHOOSING, TYPING_CREDIT = range(2)
@@ -24,8 +32,11 @@ reply_markup_back = ReplyKeyboardMarkup(
     keyboard_back, one_time_keyboard=True, resize_keyboard=True
 )
 
-# Bot Token
-BOT_TOKEN = "MY BOT TOKEN"  # Replace with your actual bot token or use environment variables
+# Fetch Bot Token from environment variables
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+if not BOT_TOKEN:
+    raise ValueError("No BOT_TOKEN provided. Please set the BOT_TOKEN environment variable.")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Send welcome message and show main keyboard."""
@@ -111,7 +122,11 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 def main():
     """Start the bot."""
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
+    try:
+        application = ApplicationBuilder().token(BOT_TOKEN).build()
+    except Exception as e:
+        logger.error(f"Failed to build application: {e}")
+        raise e
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start), MessageHandler(filters.TEXT & ~filters.COMMAND, start)],
@@ -134,8 +149,12 @@ def main():
     application.add_handler(conv_handler)
     application.add_handler(MessageHandler(filters.ALL, unknown))
 
-    # Run the bot until you press Ctrl-C
-    application.run_polling()
+    try:
+        logger.info("Bot is starting...")
+        application.run_polling()
+    except Exception as e:
+        logger.error(f"Error during polling: {e}")
+        raise e
 
 if __name__ == '__main__':
     main()
