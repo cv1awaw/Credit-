@@ -8,6 +8,7 @@ from telegram.ext import (
     filters,
     ContextTypes,
     ConversationHandler,
+    PicklePersistence,
 )
 
 # Enable logging
@@ -183,30 +184,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     )
     return ConversationHandler.END
 
-# Default handler for any other messages
-async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.effective_user
-    user_id = user.id
-
-    if user_id == SPECIAL_USER_ID:
-        welcome_message = (
-            "اهلا زهراء في البوت مالتي 🌹\n"
-            "اتمنى تستفادين منه ^^\n\n"
-            "اضغطي /start حتى يشتغل البوت "
-        )
-    else:
-        welcome_message = (
-            "السلام عليكم \n"
-            "البوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^\n\n"
-            "اضغط /start حتى يشتغل البوت "
-        )
-
-    await update.message.reply_text(
-        welcome_message,
-        reply_markup=ReplyKeyboardMarkup(
-            REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
-        )
-    )
+# Removed the default_handler to prevent interference with ConversationHandler
 
 def main():
     # Retrieve the bot token from environment variables
@@ -216,8 +194,11 @@ def main():
         logger.error("BOT_TOKEN environment variable not set.")
         exit(1)
 
-    # Initialize the bot application
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
+    # Set up persistence to maintain conversation states across restarts
+    persistence = PicklePersistence(filename='conversationbot.pickle')
+
+    # Initialize the bot application with persistence
+    application = ApplicationBuilder().token(BOT_TOKEN).persistence(persistence).build()
 
     # Define the main ConversationHandler for /start command
     conv_handler = ConversationHandler(
@@ -236,19 +217,17 @@ def main():
             ],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        allow_reentry=False  # Ensure that the conversation doesn't re-enter unexpectedly
+        allow_reentry=True,  # Allow users to re-enter the conversation at any point
+        persistent=True    # Ensure persistence is active
     )
 
     # Define the CommandHandler for /user_id command
     user_id_handler = CommandHandler('user_id', user_id_command)
 
-    # Define a general MessageHandler to handle all other non-command messages
-    general_handler = MessageHandler(filters.ALL & ~filters.COMMAND, default_handler)
-
     # Add handlers to the application in the correct order
     application.add_handler(conv_handler)
     application.add_handler(user_id_handler)
-    application.add_handler(general_handler)  # This should be added last to avoid overriding
+    # Removed the general_handler to prevent overriding ConversationHandler
 
     try:
         # Start the bot with polling and drop any pending updates
