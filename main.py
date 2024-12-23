@@ -236,7 +236,7 @@ def main():
             ],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        allow_reentry=False  # Changed from True to False
+        allow_reentry=False  # Ensure that the conversation doesn't re-enter unexpectedly
     )
 
     # Define the CommandHandler for /user_id command
@@ -250,8 +250,11 @@ def main():
     application.add_handler(user_id_handler)
     application.add_handler(general_handler)  # This should be added last to avoid overriding
 
-    # Start the bot
-    application.run_polling()
+    try:
+        # Start the bot with polling and drop any pending updates
+        application.run_polling(drop_pending_updates=True)
+    except Exception as e:
+        logger.error(f"An error occurred while running the bot: {e}")
 
 if __name__ == '__main__':
     main()
