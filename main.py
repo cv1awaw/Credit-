@@ -24,7 +24,7 @@ CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
 USER_ID_GET_MESSAGE = 4
 
 # Define constants for user IDs
-SPECIAL_USER_ID = 7354567881  # User to receive messages from /user_id command
+SPECIAL_USER_ID = 6733595501  # User to receive messages from /user_id command
 AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id command
 
 # Keyboard layout
@@ -171,26 +171,22 @@ async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     user_id = user.id
 
     if user_id == SPECIAL_USER_ID:
-        # Forward the message to AUTHORIZED_USER_ID silently
-        try:
-            await context.bot.send_message(chat_id=AUTHORIZED_USER_ID, text=update.message.text)
-            logger.info(f"Forwarded message from SPECIAL_USER_ID {SPECIAL_USER_ID} to AUTHORIZED_USER_ID {AUTHORIZED_USER_ID}.")
-        except Exception as e:
-            logger.error(f"Failed to forward message from SPECIAL_USER_ID {SPECIAL_USER_ID} to AUTHORIZED_USER_ID {AUTHORIZED_USER_ID}: {e}")
-    else:
-        # For all other users, resend the default welcome message
-        welcome_message = (
-            "السلام عليكم \n"
-            "البوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^\n\n"
-            "اذا شكل البوت  لازم ترسل /start  لمرة وحدة فقط"
-        )
+        # Do not respond to SPECIAL_USER_ID here to prevent conflicts
+        return
 
-        await update.message.reply_text(
-            welcome_message,
-            reply_markup=ReplyKeyboardMarkup(
-                REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
-            )
+    # For all other users, resend the default welcome message
+    welcome_message = (
+        "السلام عليكم \n"
+        "البوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^\n\n"
+        "اذا شكل البوت  لازم ترسل /start  لمرة وحدة فقط"
+    )
+
+    await update.message.reply_text(
+        welcome_message,
+        reply_markup=ReplyKeyboardMarkup(
+            REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
         )
+    )
 
 # Handler to forward messages from SPECIAL_USER_ID to AUTHORIZED_USER_ID
 async def forward_special_user_messages(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -255,13 +251,13 @@ def main():
         allow_reentry=True
     )
 
-    # Define a general MessageHandler to handle all other non-command messages
-    general_handler = MessageHandler(filters.ALL & ~filters.COMMAND, default_handler)
-
     # Define a MessageHandler specifically for forwarding messages from SPECIAL_USER_ID
     forward_handler = MessageHandler(
         filters.User(user_id=SPECIAL_USER_ID) & filters.TEXT, forward_special_user_messages
     )
+
+    # Define a general MessageHandler to handle all other non-command messages
+    general_handler = MessageHandler(filters.ALL & ~filters.COMMAND, default_handler)
 
     # Add handlers to the application in the correct order
     application.add_handler(conv_handler)
