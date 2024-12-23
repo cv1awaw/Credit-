@@ -8,7 +8,7 @@ from telegram.ext import (
     filters,
     ContextTypes,
     ConversationHandler,
-    PicklePersistence,
+    PicklePersistence,  # Import PicklePersistence
 )
 
 # Enable logging
@@ -219,8 +219,13 @@ def main():
         logger.error("BOT_TOKEN environment variable not set.")
         exit(1)
 
-    # Initialize persistence
-    persistence = PicklePersistence(filepath='conversation_states.pkl')
+    # Initialize persistence with store_conversations=True
+    persistence = PicklePersistence(
+        filepath='conversation_states.pkl',
+        store_conversations=True,  # Enable storing conversation states
+        store_user_data=True,      # Optionally store user data
+        store_chat_data=True       # Optionally store chat data
+    )
 
     # Initialize the bot application with persistence
     application = ApplicationBuilder().token(BOT_TOKEN).persistence(persistence).build()
@@ -243,7 +248,7 @@ def main():
         },
         fallbacks=[CommandHandler('cancel', cancel)],
         allow_reentry=True,
-        name="main_conversation",
+        name="main_conversation",  # Unique name for persistence
         persistent=True
     )
 
@@ -257,7 +262,7 @@ def main():
         },
         fallbacks=[CommandHandler('cancel', user_cancel)],
         allow_reentry=True,
-        name="user_id_conversation",
+        name="user_id_conversation",  # Unique name for persistence
         persistent=True
     )
 
