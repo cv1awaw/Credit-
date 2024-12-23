@@ -24,7 +24,7 @@ CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
 USER_ID_GET_MESSAGE = 4
 
 # Define constants for user IDs
-SPECIAL_USER_ID = 6733595501  # User to receive messages from /user_id command
+SPECIAL_USER_ID = 7354567881  # User to receive messages from /user_id command
 AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id command
 
 # Keyboard layout
@@ -39,12 +39,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f"User {user.username or 'No Username'} with ID {user_id} started the bot.")
 
     if user_id == SPECIAL_USER_ID:
-        # Updated personalized welcome message for the special user
+        # **Updated personalized welcome message for the special user**
         welcome_message = (
-            "🌹 اهلا يا صلاتي السادسة ^^\n"
-            "وائل للذين عن صلاتهم ساهون\n\n"
-            "\"شعر\"\n\n"
-            "اذا شكل البوت عندك اضغطي /start مرة وحدة بس"
+            "سبحان الذي خلقك وجملك \n"
+            "تغارين منهن والله الذي كملك\n\n"
+            "يا الطف الخلق جئت لأسالك \n"
+            "اخبريني ايقارن بشر بملك؟\n\n"
+            "اضغطي /start زهراء :)"
         )
         logger.info(f"Sending personalized message to user ID {user_id}.")
     else:
