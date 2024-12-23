@@ -24,7 +24,7 @@ CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
 USER_ID_GET_MESSAGE = 4
 
 # Define constants for user IDs
-SPECIAL_USER_ID = 6733595501  # User to receive messages from /user_id command
+SPECIAL_USER_ID = 1111  # User to receive messages from /user_id command
 AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id command
 
 # Keyboard layout
