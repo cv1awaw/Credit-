@@ -1,5 +1,6 @@
 import logging
 import os
+import pickle
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     ApplicationBuilder,
@@ -194,8 +195,27 @@ def main():
         logger.error("BOT_TOKEN environment variable not set.")
         exit(1)
 
-    # Set up persistence to maintain conversation states across restarts
-    persistence = PicklePersistence(filename='conversationbot.pickle')
+    # Load existing persistence data if available
+    persistence_data = {}
+    if os.path.exists('conversationbot.pickle'):
+        try:
+            with open('conversationbot.pickle', 'rb') as f:
+                persistence_data = pickle.load(f)
+            logger.info("Loaded existing persistence data.")
+        except Exception as e:
+            logger.error(f"Failed to load persistence data: {e}")
+
+    # Initialize PicklePersistence without 'filename' argument
+    persistence = PicklePersistence(
+        store_user_data=True,
+        store_chat_data=True,
+        store_callback_data=True,
+        store_bot_data=True,
+        user_data=persistence_data.get('user_data', {}),
+        chat_data=persistence_data.get('chat_data', {}),
+        callback_data=persistence_data.get('callback_data', {}),
+        bot_data=persistence_data.get('bot_data', {})
+    )
 
     # Initialize the bot application with persistence
     application = ApplicationBuilder().token(BOT_TOKEN).persistence(persistence).build()
@@ -218,7 +238,7 @@ def main():
         },
         fallbacks=[CommandHandler('cancel', cancel)],
         allow_reentry=True,  # Allow users to re-enter the conversation at any point
-        persistent=True    # Ensure persistence is active
+        persistent=True      # Ensure persistence is active
     )
 
     # Define the CommandHandler for /user_id command
@@ -229,11 +249,34 @@ def main():
     application.add_handler(user_id_handler)
     # Removed the general_handler to prevent overriding ConversationHandler
 
+    # Function to save persistence data on shutdown
+    async def save_persistence(application):
+        persistence_data = {
+            'user_data': persistence.user_data,
+            'chat_data': persistence.chat_data,
+            'callback_data': persistence.callback_data,
+            'bot_data': persistence.bot_data,
+        }
+        try:
+            with open('conversationbot.pickle', 'wb') as f:
+                pickle.dump(persistence_data, f)
+            logger.info("Persistence data saved successfully.")
+        except Exception as e:
+            logger.error(f"Failed to save persistence data: {e}")
+
+    # Register a shutdown handler to save persistence data
+    application.add_signal_handler(signal.SIGTERM, lambda: asyncio.create_task(save_persistence(application)))
+    application.add_signal_handler(signal.SIGINT, lambda: asyncio.create_task(save_persistence(application)))
+
     try:
         # Start the bot with polling and drop any pending updates
         application.run_polling(drop_pending_updates=True)
     except Exception as e:
         logger.error(f"An error occurred while running the bot: {e}")
+    finally:
+        # Save persistence data when the bot is shutting down
+        import asyncio, signal
+        asyncio.run(save_persistence(application))
 
 if __name__ == '__main__':
     main()
