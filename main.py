@@ -8,7 +8,6 @@ from telegram.ext import (
     filters,
     ContextTypes,
     ConversationHandler,
-    PicklePersistence,
 )
 
 # Enable logging
@@ -21,7 +20,10 @@ logger = logging.getLogger(__name__)
 # Define states for ConversationHandler
 CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
 
-# Define constants for user IDs
+# Define additional states for /user_id command
+USER_ID_WAITING_FOR_MESSAGE = 3
+
+# Special User IDs
 SPECIAL_USER_ID = 6733595501  # User to receive messages from /user_id command
 AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id command
 
@@ -38,18 +40,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     if user_id == SPECIAL_USER_ID:
         # Personalized welcome message for the special user
-        welcome_message = (
-            "اهلا زهراء في البوت مالتي 🌹\n"
-            "اتمنى تستفادين منه ^^\n\n"
-            "اضغطي /start حتى يشتغل البوت "
-        )
+        welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
         logger.info(f"Sending personalized message to user ID {user_id}.")
     else:
         # Default welcome message for other users
         welcome_message = (
-            "السلام عليكم \n"
-            "البوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^\n\n"
-            "اضغط /start حتى يشتغل البوت "
+            "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^"
         )
         logger.info(f"Sending default message to user ID {user_id}.")
 
@@ -76,7 +72,7 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     elif text == 'حساب غياب العملي':
         await update.message.reply_text(
-            "ارسل كردت العملي",
+            "ارسل ركدت العملي",
             reply_markup=ReplyKeyboardMarkup(
                 [['العودة للقائمة الرئيسية']], resize_keyboard=True, one_time_keyboard=True
             )
@@ -97,63 +93,35 @@ async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE)
     text = update.message.text
 
     if text == 'العودة للقائمة الرئيسية':
-        await update.message.reply_text(
-            "تم الرجوع إلى القائمة الرئيسية.",
-            reply_markup=ReplyKeyboardMarkup(
-                REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
-            )
-        )
-        return CHOOSING_OPTION
+        return await start(update, context)
 
     try:
         credit = float(text)
         result = credit * 8 * 0.23
-        await update.message.reply_text(f"النتيجة: {result}")
+        await update.message.reply_text(f"{result}")
+        return await start(update, context)
     except ValueError:
         await update.message.reply_text("الرجاء إرسال رقم صحيح أو العودة للقائمة الرئيسية.")
         return GET_THEORETICAL_CREDIT
-
-    # After processing, show the main menu again
-    await update.message.reply_text(
-        "اختر خيارًا آخر من القائمة:",
-        reply_markup=ReplyKeyboardMarkup(
-            REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
-        )
-    )
-    return CHOOSING_OPTION
 
 # Handler for practical credit input
 async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
 
     if text == 'العودة للقائمة الرئيسية':
-        await update.message.reply_text(
-            "تم الرجوع إلى القائمة الرئيسية.",
-            reply_markup=ReplyKeyboardMarkup(
-                REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
-            )
-        )
-        return CHOOSING_OPTION
+        return await start(update, context)
 
     try:
         credit = float(text)
         result = credit * 8 * 0.1176470588
-        await update.message.reply_text(f"النتيجة: {result}")
+        await update.message.reply_text(f"{result}")
+        return await start(update, context)
     except ValueError:
         await update.message.reply_text("الرجاء إرسال رقم صحيح أو العودة للقائمة الرئيسية.")
         return GET_PRACTICAL_CREDIT
 
-    # After processing, show the main menu again
-    await update.message.reply_text(
-        "اختر خيارًا آخر من القائمة:",
-        reply_markup=ReplyKeyboardMarkup(
-            REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
-        )
-    )
-    return CHOOSING_OPTION
-
 # Handler for /user_id command
-async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     user_id = user.id
 
@@ -161,20 +129,41 @@ async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     if user_id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
-        return
+        return ConversationHandler.END
 
-    # Extract the message from the command arguments
-    if context.args:
-        message = ' '.join(context.args)
+    await update.message.reply_text(
+        "Please send your message.",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return USER_ID_WAITING_FOR_MESSAGE
+
+# Handler for processing the user's message in /user_id conversation
+async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text
+    user_id = update.effective_user.id
+
+    if text:
         try:
-            await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=message)
-            await update.message.reply_text(f"The message has been sent to user ID {SPECIAL_USER_ID}.")
+            await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=text)
+            await update.message.reply_text(f"Message sent: {text}", reply_markup=ReplyKeyboardMarkup(
+                REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
+            ))
             logger.info(f"Message from user ID {user_id} sent to SPECIAL_USER_ID {SPECIAL_USER_ID}.")
         except Exception as e:
             logger.error(f"Failed to send message to SPECIAL_USER_ID {SPECIAL_USER_ID}: {e}")
-            await update.message.reply_text("Failed to send the message. Please try again later.")
+            await update.message.reply_text("Message didn't send. Please try again later.")
     else:
-        await update.message.reply_text("Please provide a message to send. Usage: /user_id Your message here")
+        await update.message.reply_text("Message didn't send. Please provide valid text.")
+
+    return ConversationHandler.END
+
+# Fallback handler for /user_id conversation
+async def user_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await update.message.reply_text(
+        "تم إلغاء العملية. للبدء من جديد، ارسل /start",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return ConversationHandler.END
 
 # Fallback handler for main conversation
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -184,7 +173,26 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     )
     return ConversationHandler.END
 
-# Removed the default_handler to prevent interference with ConversationHandler
+# Default handler for any other messages
+async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    user_id = user.id
+
+    reply_keyboard = [['حساب غياب النظري', 'حساب غياب العملي']]
+
+    if user_id == SPECIAL_USER_ID:
+        welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
+    else:
+        welcome_message = (
+            "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^"
+        )
+
+    await update.message.reply_text(
+        welcome_message,
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True, resize_keyboard=True
+        )
+    )
 
 def main():
     # Retrieve the bot token from environment variables
@@ -194,13 +202,10 @@ def main():
         logger.error("BOT_TOKEN environment variable not set.")
         exit(1)
 
-    # Set up persistence with PicklePersistence using 'filepath'
-    persistence = PicklePersistence(filepath='conversationbot.pickle')
+    # Initialize the bot application
+    application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # Initialize the bot application with persistence
-    application = ApplicationBuilder().token(BOT_TOKEN).persistence(persistence).build()
-
-    # Define the main ConversationHandler for /start command
+    # Define the main ConversationHandler
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
@@ -217,23 +222,31 @@ def main():
             ],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        allow_reentry=True,  # Allow users to re-enter the conversation at any point
-        persistent=True      # Ensure persistence is active
+        allow_reentry=True
     )
 
-    # Define the CommandHandler for /user_id command
-    user_id_handler = CommandHandler('user_id', user_id_command)
+    # Define the ConversationHandler for /user_id command
+    user_id_conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('user_id', user_id_command)],
+        states={
+            USER_ID_WAITING_FOR_MESSAGE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, user_message_handler)
+            ],
+        },
+        fallbacks=[CommandHandler('cancel', user_cancel)],
+        allow_reentry=True
+    )
 
-    # Add handlers to the application in the correct order
+    # Define a general MessageHandler to handle all other messages
+    general_handler = MessageHandler(filters.ALL & ~filters.COMMAND, default_handler)
+
+    # Add handlers to the application
     application.add_handler(conv_handler)
-    application.add_handler(user_id_handler)
-    # Removed the general_handler to prevent overriding ConversationHandler
+    application.add_handler(user_id_conv_handler)
+    application.add_handler(general_handler)  # This should be added last
 
-    try:
-        # Start the bot with polling and drop any pending updates
-        application.run_polling(drop_pending_updates=True)
-    except Exception as e:
-        logger.error(f"An error occurred while running the bot: {e}")
+    # Start the bot
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
