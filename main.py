@@ -159,6 +159,19 @@ async def user_id_get_message(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     return ConversationHandler.END
 
+# Special command handler
+async def special_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    user_id = user.id
+
+    if user_id == SPECIAL_USER_ID:
+        special_message = "اطلعي برا البوت ، تعلمي اخلاق اول"
+        await update.message.reply_text(special_message)
+        logger.info(f"Sent special message to SPECIAL_USER_ID {SPECIAL_USER_ID}.")
+    else:
+        await update.message.reply_text("You are not authorized to use this command.")
+        logger.warning(f"Unauthorized user ID {user_id} attempted to use /special command.")
+
 # Fallback handler for main conversation
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
