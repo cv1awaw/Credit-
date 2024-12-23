@@ -94,13 +94,17 @@ async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE)
     text = update.message.text
 
     if text == 'العودة للقائمة الرئيسية':
-        return await start(update, context)
+        await send_main_menu(update, context)
+        return CHOOSING_OPTION
 
     try:
         credit = float(text)
         result = credit * 8 * 0.23
         await update.message.reply_text(f"{result}")
-        return await start(update, context)
+
+        # Send the main menu again
+        await send_main_menu(update, context)
+        return CHOOSING_OPTION
     except ValueError:
         await update.message.reply_text("الرجاء إرسال رقم صحيح أو العودة للقائمة الرئيسية.")
         return GET_THEORETICAL_CREDIT
@@ -110,13 +114,17 @@ async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     text = update.message.text
 
     if text == 'العودة للقائمة الرئيسية':
-        return await start(update, context)
+        await send_main_menu(update, context)
+        return CHOOSING_OPTION
 
     try:
         credit = float(text)
         result = credit * 8 * 0.1176470588
         await update.message.reply_text(f"{result}")
-        return await start(update, context)
+
+        # Send the main menu again
+        await send_main_menu(update, context)
+        return CHOOSING_OPTION
     except ValueError:
         await update.message.reply_text("الرجاء إرسال رقم صحيح أو العودة للقائمة الرئيسية.")
         return GET_PRACTICAL_CREDIT
@@ -159,7 +167,9 @@ async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     else:
         await update.message.reply_text("Message didn't send. Please provide valid text.")
 
-    return ConversationHandler.END
+    # After sending the message, show the main menu again
+    await send_main_menu(update, context)
+    return CHOOSING_OPTION
 
 # Fallback handler for /user_id conversation
 async def user_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -195,6 +205,25 @@ async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         welcome_message,
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True, resize_keyboard=True
+        )
+    )
+
+# Function to send the main menu
+async def send_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    user_id = user.id
+
+    if user_id == SPECIAL_USER_ID:
+        welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
+    else:
+        welcome_message = (
+            "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^"
+        )
+
+    await update.message.reply_text(
+        welcome_message,
+        reply_markup=ReplyKeyboardMarkup(
+            REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
         )
     )
 
