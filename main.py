@@ -8,7 +8,7 @@ from telegram.ext import (
     filters,
     ContextTypes,
     ConversationHandler,
-    PicklePersistence,  # Import PicklePersistence
+    PicklePersistence,
 )
 
 # Enable logging
@@ -31,6 +31,25 @@ AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id command
 # Keyboard layout
 REPLY_KEYBOARD = [['حساب غياب النظري', 'حساب غياب العملي']]
 
+# Function to send the main menu
+async def send_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    user_id = user.id
+
+    if user_id == SPECIAL_USER_ID:
+        welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
+    else:
+        welcome_message = (
+            "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^"
+        )
+
+    await update.message.reply_text(
+        welcome_message,
+        reply_markup=ReplyKeyboardMarkup(
+            REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
+        )
+    )
+
 # Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
@@ -39,23 +58,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     # Log the user ID for debugging
     logger.info(f"User {user.username or 'No Username'} with ID {user_id} started the bot.")
 
-    if user_id == SPECIAL_USER_ID:
-        # Personalized welcome message for the special user
-        welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
-        logger.info(f"Sending personalized message to user ID {user_id}.")
-    else:
-        # Default welcome message for other users
-        welcome_message = (
-            "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^"
-        )
-        logger.info(f"Sending default message to user ID {user_id}.")
-
-    await update.message.reply_text(
-        welcome_message,
-        reply_markup=ReplyKeyboardMarkup(
-            REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
-        )
-    )
+    await send_main_menu(update, context)
     return CHOOSING_OPTION
 
 # Handler for choosing option
@@ -100,7 +103,7 @@ async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE)
     try:
         credit = float(text)
         result = credit * 8 * 0.23
-        await update.message.reply_text(f"{result}")
+        await update.message.reply_text(f"الناتج: {result}")
 
         # Send the main menu again
         await send_main_menu(update, context)
@@ -120,7 +123,7 @@ async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     try:
         credit = float(text)
         result = credit * 8 * 0.1176470588
-        await update.message.reply_text(f"{result}")
+        await update.message.reply_text(f"الناتج: {result}")
 
         # Send the main menu again
         await send_main_menu(update, context)
@@ -187,7 +190,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     )
     return ConversationHandler.END
 
-# Default handler for any other messages
+# Default handler for any other non-command messages
 async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     user_id = user.id
@@ -208,25 +211,6 @@ async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
     )
 
-# Function to send the main menu
-async def send_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.effective_user
-    user_id = user.id
-
-    if user_id == SPECIAL_USER_ID:
-        welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
-    else:
-        welcome_message = (
-            "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^"
-        )
-
-    await update.message.reply_text(
-        welcome_message,
-        reply_markup=ReplyKeyboardMarkup(
-            REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
-        )
-    )
-
 def main():
     # Retrieve the bot token from environment variables
     BOT_TOKEN = os.environ.get("BOT_TOKEN")
@@ -236,7 +220,7 @@ def main():
         exit(1)
 
     # Initialize persistence
-    persistence = PicklePersistence(filepath='conversation_states.pkl')  # Specify a file path
+    persistence = PicklePersistence(filepath='conversation_states.pkl')
 
     # Initialize the bot application with persistence
     application = ApplicationBuilder().token(BOT_TOKEN).persistence(persistence).build()
@@ -260,7 +244,7 @@ def main():
         fallbacks=[CommandHandler('cancel', cancel)],
         allow_reentry=True,
         name="main_conversation",
-        persistent=True  # Enable persistence
+        persistent=True
     )
 
     # Define the ConversationHandler for /user_id command
@@ -274,11 +258,11 @@ def main():
         fallbacks=[CommandHandler('cancel', user_cancel)],
         allow_reentry=True,
         name="user_id_conversation",
-        persistent=True  # Enable persistence
+        persistent=True
     )
 
-    # Define a general MessageHandler to handle all other messages
-    general_handler = MessageHandler(filters.ALL & ~filters.COMMAND, default_handler)
+    # Define a general MessageHandler to handle all other non-command messages
+    general_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, default_handler)
 
     # Add handlers to the application
     application.add_handler(conv_handler)
