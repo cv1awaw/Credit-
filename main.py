@@ -96,32 +96,60 @@ async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE)
     text = update.message.text
 
     if text == 'العودة للقائمة الرئيسية':
-        return await start(update, context)
+        await update.message.reply_text(
+            "تم الرجوع إلى القائمة الرئيسية.",
+            reply_markup=ReplyKeyboardMarkup(
+                REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
+            )
+        )
+        return CHOOSING_OPTION
 
     try:
         credit = float(text)
         result = credit * 8 * 0.23
-        await update.message.reply_text(f"{result}")
-        return await start(update, context)
+        await update.message.reply_text(f"النتيجة: {result}")
     except ValueError:
         await update.message.reply_text("الرجاء إرسال رقم صحيح أو العودة للقائمة الرئيسية.")
         return GET_THEORETICAL_CREDIT
+
+    # After processing, show the main menu again
+    await update.message.reply_text(
+        "اختر خيارًا آخر من القائمة:",
+        reply_markup=ReplyKeyboardMarkup(
+            REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
+        )
+    )
+    return CHOOSING_OPTION
 
 # Handler for practical credit input
 async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
 
     if text == 'العودة للقائمة الرئيسية':
-        return await start(update, context)
+        await update.message.reply_text(
+            "تم الرجوع إلى القائمة الرئيسية.",
+            reply_markup=ReplyKeyboardMarkup(
+                REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
+            )
+        )
+        return CHOOSING_OPTION
 
     try:
         credit = float(text)
         result = credit * 8 * 0.1176470588
-        await update.message.reply_text(f"{result}")
-        return await start(update, context)
+        await update.message.reply_text(f"النتيجة: {result}")
     except ValueError:
         await update.message.reply_text("الرجاء إرسال رقم صحيح أو العودة للقائمة الرئيسية.")
         return GET_PRACTICAL_CREDIT
+
+    # After processing, show the main menu again
+    await update.message.reply_text(
+        "اختر خيارًا آخر من القائمة:",
+        reply_markup=ReplyKeyboardMarkup(
+            REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
+        )
+    )
+    return CHOOSING_OPTION
 
 # Handler for /user_id command
 async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
