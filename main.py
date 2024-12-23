@@ -8,6 +8,7 @@ from telegram.ext import (
     filters,
     ContextTypes,
     ConversationHandler,
+    PicklePersistence,  # Import PicklePersistence
 )
 
 # Enable logging
@@ -145,9 +146,12 @@ async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     if text:
         try:
             await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=text)
-            await update.message.reply_text(f"Message sent: {text}", reply_markup=ReplyKeyboardMarkup(
-                REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
-            ))
+            await update.message.reply_text(
+                f"Message sent: {text}",
+                reply_markup=ReplyKeyboardMarkup(
+                    REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
+                )
+            )
             logger.info(f"Message from user ID {user_id} sent to SPECIAL_USER_ID {SPECIAL_USER_ID}.")
         except Exception as e:
             logger.error(f"Failed to send message to SPECIAL_USER_ID {SPECIAL_USER_ID}: {e}")
@@ -202,8 +206,11 @@ def main():
         logger.error("BOT_TOKEN environment variable not set.")
         exit(1)
 
-    # Initialize the bot application
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
+    # Initialize persistence
+    persistence = PicklePersistence(filepath='conversation_states.pkl')  # Specify a file path
+
+    # Initialize the bot application with persistence
+    application = ApplicationBuilder().token(BOT_TOKEN).persistence(persistence).build()
 
     # Define the main ConversationHandler
     conv_handler = ConversationHandler(
@@ -222,7 +229,9 @@ def main():
             ],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        allow_reentry=True
+        allow_reentry=True,
+        name="main_conversation",
+        persistent=True  # Enable persistence
     )
 
     # Define the ConversationHandler for /user_id command
@@ -234,7 +243,9 @@ def main():
             ],
         },
         fallbacks=[CommandHandler('cancel', user_cancel)],
-        allow_reentry=True
+        allow_reentry=True,
+        name="user_id_conversation",
+        persistent=True  # Enable persistence
     )
 
     # Define a general MessageHandler to handle all other messages
