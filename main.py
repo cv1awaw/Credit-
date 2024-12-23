@@ -219,11 +219,12 @@ def main():
         logger.error("BOT_TOKEN environment variable not set.")
         exit(1)
 
-    # Initialize persistence without 'store_conversations'
+    # Initialize persistence with correct arguments
     persistence = PicklePersistence(
         filepath='conversation_states.pkl',
-        store_user_data=True,      # Optionally store user data
-        store_chat_data=True       # Optionally store chat data
+        store_user_data=True,      # Enable storing user data
+        store_chat_data=True,      # Enable storing chat data
+        store_conversations=True   # Enable storing conversation states
     )
 
     # Initialize the bot application with persistence
