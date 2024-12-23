@@ -39,10 +39,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f"User {user.username or 'No Username'} with ID {user_id} started the bot.")
 
     if user_id == SPECIAL_USER_ID:
-        # Personalized welcome message for the special user
+        # Updated personalized welcome message for the special user
         welcome_message = (
-            "اهلا يا صلاتي السادسة 🌹\n"
-            "اذا شكل عندك البوت اضغطي /start مرة وحدة بس اذا شكل"
+            "🌹 اهلا يا صلاتي السادسة ^^\n"
+            "وائل للذين عن صلاتهم ساهون\n\n"
+            "\"شعر\"\n\n"
+            "اذا شكل البوت عندك اضغطي /start مرة وحدة بس"
         )
         logger.info(f"Sending personalized message to user ID {user_id}.")
     else:
@@ -251,9 +253,6 @@ def main():
         fallbacks=[CommandHandler('cancel', user_id_cancel)],
         allow_reentry=True
     )
-
-    # Define the CommandHandler for /user_id command
-    # (Now handled by the ConversationHandler above)
 
     # Define a general MessageHandler to handle all other non-command messages
     general_handler = MessageHandler(filters.ALL & ~filters.COMMAND, default_handler)
