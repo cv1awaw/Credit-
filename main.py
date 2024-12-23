@@ -236,7 +236,7 @@ def main():
             ],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        allow_reentry=True
+        allow_reentry=False  # Changed from True to False
     )
 
     # Define the CommandHandler for /user_id command
