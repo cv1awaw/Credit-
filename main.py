@@ -24,7 +24,7 @@ CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
 USER_ID_GET_MESSAGE = 4
 
 # Define constants for user IDs
-SPECIAL_USER_ID = 7354567881  # User to receive messages from /user_id command
+SPECIAL_USER_ID = 6733595501  # User to receive messages from /user_id command
 AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id command
 
 # Keyboard layout
@@ -45,7 +45,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             "تغارين منهن والله الذي كملك\n\n"
             "يا الطف الخلق جئت لأسالك \n"
             "اخبريني ايقارن بشر بملك؟\n\n"
-            "اضغطي /start زهراء :)"
+            "اكتبي رسالتك هنا راح تتحول الي ....  👉🏻👈🏻"
         )
         logger.info(f"Sending personalized message to user ID {user_id}.")
     else:
