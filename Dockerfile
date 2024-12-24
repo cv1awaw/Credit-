@@ -1,20 +1,21 @@
-# Use an official Python runtime as a parent image
+# Dockerfile
 FROM python:3.11-slim
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Set work directory
+# Set working directory
 WORKDIR /app
 
 # Install dependencies
 COPY requirements.txt .
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy project
-COPY . .
+# Copy the bot script
+COPY main.py .
 
-# Command to run the bot
+# Define environment variables (replace with your actual values or set them in Railway)
+ENV BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN
+
+# Run the bot
 CMD ["python", "main.py"]
