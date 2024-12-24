@@ -208,8 +208,12 @@ async def main():
     # Initialize the bot application
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # Remove webhook if any exists to prevent conflicts
-    await application.bot.delete_webhook()
+    # Optionally remove webhook to prevent conflicts (uncomment if needed)
+    # try:
+    #     await application.bot.delete_webhook()
+    #     logger.info("Webhook deleted successfully.")
+    # except Exception as e:
+    #     logger.warning(f"Could not delete webhook: {e}")
 
     # Define the main ConversationHandler
     conv_handler = ConversationHandler(
@@ -252,7 +256,19 @@ async def main():
     application.add_handler(general_handler)  # This should be added last
 
     # Start the bot with polling
-    await application.run_polling()
+    try:
+        await application.run_polling()
+    except RuntimeError as e:
+        logger.error(f"RuntimeError encountered: {e}")
+        # Depending on your environment, you might want to handle the event loop differently
+        # For example, if running inside Jupyter, consider using asyncio.create_task()
+        raise e
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except RuntimeError as e:
+        if 'already running' in str(e):
+            logger.error("Event loop is already running. Cannot start the bot.")
+        else:
+            logger.error(f"Unexpected RuntimeError: {e}")
