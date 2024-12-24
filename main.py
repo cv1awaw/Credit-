@@ -24,7 +24,7 @@ CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
 USER_ID_WAITING_FOR_MESSAGE = 3
 
 # Special User IDs
-SPECIAL_USER_ID = 6543357765  # User to receive messages from /user_id command
+SPECIAL_USER_ID = 77655677655  # User to receive messages from /user_id command
 AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id command
 
 # Keyboard layout
