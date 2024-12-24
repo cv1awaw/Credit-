@@ -1,5 +1,6 @@
 import logging
 import os
+import asyncio
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     ApplicationBuilder,
@@ -196,7 +197,7 @@ async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
     )
 
-def main():
+async def main():
     # Retrieve the bot token from environment variables
     BOT_TOKEN = os.environ.get("BOT_TOKEN")
     
@@ -206,6 +207,9 @@ def main():
 
     # Initialize the bot application
     application = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    # Remove webhook if any exists to prevent conflicts
+    await application.bot.delete_webhook()
 
     # Define the main ConversationHandler
     conv_handler = ConversationHandler(
@@ -247,8 +251,8 @@ def main():
     application.add_handler(user_id_conv_handler)
     application.add_handler(general_handler)  # This should be added last
 
-    # Start the bot
-    application.run_polling()
+    # Start the bot with polling
+    await application.run_polling()
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
