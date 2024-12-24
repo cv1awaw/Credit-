@@ -205,15 +205,11 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
         await update.effective_message.reply_text("An unexpected error occurred. Please try again later.")
 
 def main():
-    # Retrieve the bot token and webhook URL from environment variables
+    # Retrieve the bot token from environment variables
     BOT_TOKEN = os.environ.get("BOT_TOKEN")
-    WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # e.g., 'https://yourdomain.com/webhook'
-
+    
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN environment variable not set.")
-        exit(1)
-    if not WEBHOOK_URL:
-        logger.error("WEBHOOK_URL environment variable not set.")
         exit(1)
 
     # Initialize the bot application
@@ -262,13 +258,8 @@ def main():
     # Add the error handler
     application.add_error_handler(error_handler)
 
-    # Set the webhook
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 8443)),
-        url_path="webhook",
-        webhook_url=f"{WEBHOOK_URL}/webhook"
-    )
+    # Start the bot with polling
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
