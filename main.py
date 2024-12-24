@@ -19,17 +19,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Define states for ConversationHandler
-CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
+CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT, SEND_MESSAGE = range(4)
 
 # Define additional states for /user_id command
-USER_ID_WAITING_FOR_MESSAGE = 3
+USER_ID_WAITING_FOR_MESSAGE = 4
 
 # Special User IDs
 SPECIAL_USER_ID = 77655677655  # User to receive messages from /user_id command
 AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id command
 
 # Keyboard layout
-REPLY_KEYBOARD = [['حساب غياب النظري', 'حساب غياب العملي']]
+REPLY_KEYBOARD = [
+    ['حساب غياب النظري', 'حساب غياب العملي'],
+    ['ارسل رسالة لصاحب البوت']
+]
 
 # Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -80,6 +83,13 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
         )
         return GET_PRACTICAL_CREDIT
+
+    elif text == 'ارسل رسالة لصاحب البوت':
+        await update.message.reply_text(
+            "يرجى إرسال رسالتك الآن.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return SEND_MESSAGE
 
     else:
         await update.message.reply_text(
@@ -143,19 +153,40 @@ async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
     user_id = update.effective_user.id
+    username = update.effective_user.username or "No Username"
 
     if text:
         try:
-            await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=text)
-            await update.message.reply_text(f"Message sent: {text}", reply_markup=ReplyKeyboardMarkup(
-                REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
-            ))
+            formatted_message = f"Message from @{username} (ID: {user_id}):\n\n{text}"
+            await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=formatted_message)
+            await update.message.reply_text("رسالتك تم إرسالها بنجاح.")
             logger.info(f"Message from user ID {user_id} sent to SPECIAL_USER_ID {SPECIAL_USER_ID}.")
         except Exception as e:
             logger.error(f"Failed to send message to SPECIAL_USER_ID {SPECIAL_USER_ID}: {e}")
-            await update.message.reply_text("Message didn't send. Please try again later.")
+            await update.message.reply_text("لم يتم إرسال الرسالة. يرجى المحاولة لاحقًا.")
     else:
-        await update.message.reply_text("Message didn't send. Please provide valid text.")
+        await update.message.reply_text("لم يتم إرسال الرسالة. يرجى توفير نص صالح.")
+
+    return ConversationHandler.END
+
+# Handler for sending messages to the bot owner
+async def send_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text
+    user = update.effective_user
+    user_id = user.id
+    username = user.username or "No Username"
+
+    if text:
+        try:
+            formatted_message = f"رسالة من @{username} (ID: {user_id}):\n\n{text}"
+            await context.bot.send_message(chat_id=AUTHORIZED_USER_ID, text=formatted_message)
+            await update.message.reply_text("تم إرسال رسالتك بنجاح.")
+            logger.info(f"Forwarded message from @{username} (ID: {user_id}) to AUTHORIZED_USER_ID {AUTHORIZED_USER_ID}.")
+        except Exception as e:
+            logger.error(f"Failed to forward message to AUTHORIZED_USER_ID {AUTHORIZED_USER_ID}: {e}")
+            await update.message.reply_text("لم يتم إرسال الرسالة. يرجى المحاولة لاحقًا.")
+    else:
+        await update.message.reply_text("لم يتم إرسال الرسالة. يرجى توفير نص صالح.")
 
     return ConversationHandler.END
 
@@ -180,7 +211,10 @@ async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     user = update.effective_user
     user_id = user.id
 
-    reply_keyboard = [['حساب غياب النظري', 'حساب غياب العملي']]
+    reply_keyboard = [
+        ['حساب غياب النظري', 'حساب غياب العملي'],
+        ['ارسل رسالة لصاحب البوت']
+    ]
 
     if user_id == SPECIAL_USER_ID:
         welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
@@ -221,7 +255,7 @@ def main():
         states={
             CHOOSING_OPTION: [
                 MessageHandler(
-                    filters.Regex('^(حساب غياب النظري|حساب غياب العملي)$'), choice_handler
+                    filters.Regex('^(حساب غياب النظري|حساب غياب العملي|ارسل رسالة لصاحب البوت)$'), choice_handler
                 )
             ],
             GET_THEORETICAL_CREDIT: [
@@ -229,6 +263,9 @@ def main():
             ],
             GET_PRACTICAL_CREDIT: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, practical_credit)
+            ],
+            SEND_MESSAGE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, send_message_handler)
             ],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
