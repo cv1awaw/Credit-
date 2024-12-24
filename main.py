@@ -1,6 +1,5 @@
 import logging
 import os
-import asyncio
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     ApplicationBuilder,
@@ -197,7 +196,7 @@ async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
     )
 
-async def main():
+def main():
     # Retrieve the bot token from environment variables
     BOT_TOKEN = os.environ.get("BOT_TOKEN")
     
@@ -210,7 +209,7 @@ async def main():
 
     # Optionally remove webhook to prevent conflicts (uncomment if needed)
     # try:
-    #     await application.bot.delete_webhook()
+    #     application.bot.delete_webhook()
     #     logger.info("Webhook deleted successfully.")
     # except Exception as e:
     #     logger.warning(f"Could not delete webhook: {e}")
@@ -256,19 +255,7 @@ async def main():
     application.add_handler(general_handler)  # This should be added last
 
     # Start the bot with polling
-    try:
-        await application.run_polling()
-    except RuntimeError as e:
-        logger.error(f"RuntimeError encountered: {e}")
-        # Depending on your environment, you might want to handle the event loop differently
-        # For example, if running inside Jupyter, consider using asyncio.create_task()
-        raise e
+    application.run_polling()
 
 if __name__ == '__main__':
-    try:
-        asyncio.run(main())
-    except RuntimeError as e:
-        if 'already running' in str(e):
-            logger.error("Event loop is already running. Cannot start the bot.")
-        else:
-            logger.error(f"Unexpected RuntimeError: {e}")
+    main()
