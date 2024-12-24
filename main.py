@@ -18,17 +18,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Define states for ConversationHandler
-CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
+CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT, SEND_MESSAGE_TO_OWNER = range(4)
 
 # Define additional states for /user_id command
-USER_ID_WAITING_FOR_MESSAGE = 3
+USER_ID_WAITING_FOR_MESSAGE = 4
 
 # Special User IDs
-SPECIAL_USER_ID = 77655677655  # User to receive messages from /user_id command
+SPECIAL_USER_ID = 77655677655  # User to receive messages from /user_id command and owner messages
 AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id command
 
 # Keyboard layout
-REPLY_KEYBOARD = [['حساب غياب النظري', 'حساب غياب العملي']]
+REPLY_KEYBOARD = [['حساب غياب النظري', 'حساب غياب العملي'], ['ارسل رسالة لصاحب البوت']]
 MAIN_MENU_KEYBOARD = [['العودة للقائمة الرئيسية']]
 
 # Message Constants
@@ -40,6 +40,7 @@ WELCOME_MESSAGE_DEFAULT = (
 WELCOME_MESSAGE_SPECIAL = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
 REQUEST_THEORETICAL_CREDIT = "ارسل كردت مادة النظري"
 REQUEST_PRACTICAL_CREDIT = "ارسل ركدت العملي"
+REQUEST_OWNER_MESSAGE = "يرجى إرسال رسالتك التي تريد إرسالها إلى صاحب البوت."
 INVALID_CHOICE_MESSAGE = "اختيار غير معروف. الرجاء الاختيار من الأزرار."
 INVALID_NUMBER_MESSAGE = "الرجاء إرسال رقم صحيح أو العودة للقائمة الرئيسية."
 NOT_AUTHORIZED_MESSAGE = "You are not authorized to use this command."
@@ -106,6 +107,15 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
         )
         return GET_PRACTICAL_CREDIT
+
+    elif text == 'ارسل رسالة لصاحب البوت':
+        await update.message.reply_text(
+            REQUEST_OWNER_MESSAGE,
+            reply_markup=ReplyKeyboardMarkup(
+                MAIN_MENU_KEYBOARD, resize_keyboard=True, one_time_keyboard=True
+            )
+        )
+        return SEND_MESSAGE_TO_OWNER
 
     else:
         await update.message.reply_text(
@@ -188,6 +198,36 @@ async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
     return ConversationHandler.END
 
+# Handler for sending message to bot owner
+async def send_message_to_owner_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    user_id = user.id
+    username = user.username or user.full_name
+
+    text = update.message.text
+
+    if text == 'العودة للقائمة الرئيسية':
+        return await start(update, context)
+
+    if text:
+        try:
+            message_to_owner = f"رسالة من @{username} (ID: {user_id}):\n\n{text}"
+            await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=message_to_owner)
+            await update.message.reply_text(
+                "تم إرسال رسالتك إلى صاحب البوت. شكرًا لتواصلك!",
+                reply_markup=ReplyKeyboardMarkup(
+                    REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
+                )
+            )
+            logger.info(f"Forwarded message from @{username} (ID: {user_id}) to SPECIAL_USER_ID {SPECIAL_USER_ID}.")
+        except Exception as e:
+            logger.error(f"Failed to send message to SPECIAL_USER_ID {SPECIAL_USER_ID}: {e}")
+            await update.message.reply_text(MESSAGE_SEND_FAILURE)
+    else:
+        await update.message.reply_text("الرجاء إرسال رسالة صالحة أو العودة للقائمة الرئيسية.")
+
+    return ConversationHandler.END
+
 # Fallback handler for /user_id conversation
 async def user_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
@@ -245,7 +285,7 @@ def main():
         states={
             CHOOSING_OPTION: [
                 MessageHandler(
-                    filters.Regex('^(حساب غياب النظري|حساب غياب العملي)$'), choice_handler
+                    filters.Regex('^(حساب غياب النظري|حساب غياب العملي|ارسل رسالة لصاحب البوت)$'), choice_handler
                 )
             ],
             GET_THEORETICAL_CREDIT: [
@@ -253,6 +293,9 @@ def main():
             ],
             GET_PRACTICAL_CREDIT: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, practical_credit)
+            ],
+            SEND_MESSAGE_TO_OWNER: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, send_message_to_owner_handler)
             ],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
