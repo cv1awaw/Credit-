@@ -258,8 +258,8 @@ def main():
     # Add the error handler
     application.add_error_handler(error_handler)
 
-    # Start the bot with polling
-    application.run_polling()
+    # Start the bot with polling and drop any pending updates
+    application.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
     main()
