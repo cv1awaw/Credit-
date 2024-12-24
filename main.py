@@ -8,6 +8,7 @@ from telegram.ext import (
     filters,
     ContextTypes,
     ConversationHandler,
+    PicklePersistence,
 )
 
 # Enable logging
@@ -196,6 +197,13 @@ async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
     )
 
+# Error handler to catch all errors
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.error(msg="Exception while handling an update:", exc_info=context.error)
+    # Optionally, notify the user about the error
+    if isinstance(update, Update) and update.effective_message:
+        await update.effective_message.reply_text("An unexpected error occurred. Please try again later.")
+
 def main():
     # Retrieve the bot token from environment variables
     BOT_TOKEN = os.environ.get("BOT_TOKEN")
@@ -204,7 +212,8 @@ def main():
         logger.error("BOT_TOKEN environment variable not set.")
         exit(1)
 
-    # Initialize the bot application
+    # Initialize the bot application with persistence (optional)
+    # persistence = PicklePersistence(filename='bot_data.pkl')
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
     # Optionally remove webhook to prevent conflicts (uncomment if needed)
@@ -253,6 +262,9 @@ def main():
     application.add_handler(conv_handler)
     application.add_handler(user_id_conv_handler)
     application.add_handler(general_handler)  # This should be added last
+
+    # Add the error handler
+    application.add_error_handler(error_handler)
 
     # Start the bot with polling
     application.run_polling()
