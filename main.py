@@ -9,6 +9,7 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler,
 )
+import asyncio
 
 # Enable logging
 logging.basicConfig(
@@ -45,7 +46,7 @@ INVALID_CHOICE_MESSAGE = "اختيار غير معروف. الرجاء الاخ�
 INVALID_NUMBER_MESSAGE = "الرجاء إرسال رقم صحيح أو العودة للقائمة الرئيسية."
 NOT_AUTHORIZED_MESSAGE = "You are not authorized to use this command."
 USER_ID_PROMPT_MESSAGE = "Please send your message."
-MESSAGE_SENT_CONFIRMATION = "Message sent: {text}"
+MESSAGE_SENT_CONFIRMATION = "تم إرسال رسالتك إلى صاحب البوت. شكرًا لتواصلك!"
 MESSAGE_SEND_FAILURE = "Message didn't send. Please try again later."
 CANCEL_MESSAGE = (
     "تم إلغاء العملية. للبدء من جديد، ارسل /start"
@@ -54,7 +55,8 @@ HELP_MESSAGE = (
     "هنا بعض الأوامر التي يمكنك استخدامها:\n"
     "/start - بدء المحادثة مع البوت\n"
     "/user_id - إرسال رسالة مخصصة للمستخدم الخاص\n"
-    "/cancel - إلغاء العملية الحالية"
+    "/cancel - إلغاء العملية الحالية\n"
+    "/help - عرض قائمة الأوامر المتاحة"
 )
 
 # Start command handler
@@ -184,7 +186,7 @@ async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         try:
             await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=text)
             await update.message.reply_text(
-                MESSAGE_SENT_CONFIRMATION.format(text=text),
+                MESSAGE_SENT_CONFIRMATION,
                 reply_markup=ReplyKeyboardMarkup(
                     REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
                 )
@@ -211,10 +213,10 @@ async def send_message_to_owner_handler(update: Update, context: ContextTypes.DE
 
     if text:
         try:
-            message_to_owner = f"رسالة من @{username} (ID: {user_id}):\n\n{text}"
+            message_to_owner = f"📩 رسالة من @{username} (ID: {user_id}):\n\n{text}"
             await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=message_to_owner)
             await update.message.reply_text(
-                "تم إرسال رسالتك إلى صاحب البوت. شكرًا لتواصلك!",
+                MESSAGE_SENT_CONFIRMATION,
                 reply_markup=ReplyKeyboardMarkup(
                     REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
                 )
@@ -268,6 +270,14 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
     logger.error(msg="Exception while handling an update:", exc_info=context.error)
     if isinstance(update, Update) and update.effective_message:
         await update.effective_message.reply_text("حدث خطأ ما. يرجى المحاولة لاحقًا.")
+
+async def setup_application(application):
+    # Delete any existing webhook to avoid conflicts with getUpdates
+    try:
+        await application.bot.delete_webhook()
+        logger.info("Existing webhooks deleted successfully.")
+    except Exception as e:
+        logger.error(f"Failed to delete existing webhook: {e}")
 
 def main():
     # Retrieve the bot token from environment variables
@@ -328,6 +338,9 @@ def main():
 
     # Add the error handler
     application.add_error_handler(error_handler)
+
+    # Setup application (e.g., delete existing webhooks)
+    asyncio.run(setup_application(application))
 
     # Start the bot
     logger.info("Bot is starting...")
