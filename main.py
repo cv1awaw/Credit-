@@ -24,7 +24,7 @@ CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
 USER_ID_GET_MESSAGE = 4
 
 # Define constants for user IDs
-SPECIAL_USER_ID = 1111  # User to receive messages from /user_id command
+SPECIAL_USER_ID = 113663111  # User to receive messages from /user_id command
 AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id command
 
 # Keyboard layout
@@ -41,7 +41,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if user_id == SPECIAL_USER_ID:
         # **Updated personalized welcome message for the special user**
         welcome_message = (
-            "اطلعي برا البوت ، تعلمي اخلاق اول"
+            "سبحان الذي خلقك وجملك \n"
+            "تغارين منهن والله الذي كملك\n\n"
+            "يا الطف الخلق جئت لأسالك \n"
+            "اخبريني ايقارن بشر بملك؟\n\n"
+            "اكتبي رسالتك هنا راح تتحول الي ....  👉🏻👈🏻"
         )
         logger.info(f"Sending personalized message to user ID {user_id}.")
     else:
@@ -147,30 +151,11 @@ async def user_id_get_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=message)
         await update.message.reply_text(f"The message has been sent to user ID {SPECIAL_USER_ID}.")
         logger.info(f"Authorized user ID {user_id} sent message to SPECIAL_USER_ID {SPECIAL_USER_ID}.")
-
-        # **Send the special message back to SPECIAL_USER_ID**
-        special_reply = "اطلعي برا البوت ، تعلمي اخلاق اول"
-        await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=special_reply)
-        logger.info(f"Sent special reply to SPECIAL_USER_ID {SPECIAL_USER_ID}.")
-
     except Exception as e:
         logger.error(f"Failed to send message to SPECIAL_USER_ID {SPECIAL_USER_ID}: {e}")
         await update.message.reply_text("Failed to send the message. Please try again later.")
 
     return ConversationHandler.END
-
-# Special command handler
-async def special_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.effective_user
-    user_id = user.id
-
-    if user_id == SPECIAL_USER_ID:
-        special_message = "اطلعي برا البوت ، تعلمي اخلاق اول"
-        await update.message.reply_text(special_message)
-        logger.info(f"Sent special message to SPECIAL_USER_ID {SPECIAL_USER_ID}.")
-    else:
-        await update.message.reply_text("You are not authorized to use this command.")
-        logger.warning(f"Unauthorized user ID {user_id} attempted to use /special command.")
 
 # Fallback handler for main conversation
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -279,9 +264,6 @@ def main():
     application.add_handler(user_id_conv_handler)
     application.add_handler(forward_handler)  # Must be before general_handler to prioritize forwarding
     application.add_handler(general_handler)  # This should be added last to avoid overriding
-
-    # **Add the new special command handler**
-    application.add_handler(CommandHandler('special', special_command))
 
     # Start the bot
     application.run_polling()
