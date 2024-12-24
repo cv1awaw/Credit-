@@ -17,14 +17,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Define states for main ConversationHandler
+# Define states for ConversationHandler
 CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT = range(3)
 
-# Define states for /user_id ConversationHandler
-USER_ID_GET_MESSAGE = 4
+# Define additional states for /user_id command
+USER_ID_WAITING_FOR_MESSAGE = 3
 
-# Define constants for user IDs
-SPECIAL_USER_ID = 113663111  # User to receive messages from /user_id command
+# Special User IDs
+SPECIAL_USER_ID = 6543357765  # User to receive messages from /user_id command
 AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id command
 
 # Keyboard layout
@@ -39,21 +39,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f"User {user.username or 'No Username'} with ID {user_id} started the bot.")
 
     if user_id == SPECIAL_USER_ID:
-        # **Updated personalized welcome message for the special user**
-        welcome_message = (
-            "سبحان الذي خلقك وجملك \n"
-            "تغارين منهن والله الذي كملك\n\n"
-            "يا الطف الخلق جئت لأسالك \n"
-            "اخبريني ايقارن بشر بملك؟\n\n"
-            "اكتبي رسالتك هنا راح تتحول الي ....  👉🏻👈🏻"
-        )
+        # Personalized welcome message for the special user
+        welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
         logger.info(f"Sending personalized message to user ID {user_id}.")
     else:
         # Default welcome message for other users
         welcome_message = (
-            "السلام عليكم \n"
-            "البوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^\n\n"
-            "اذا شكل البوت  لازم ترسل /start  لمرة وحدة فقط"
+            "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^"
         )
         logger.info(f"Sending default message to user ID {user_id}.")
 
@@ -80,7 +72,7 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     elif text == 'حساب غياب العملي':
         await update.message.reply_text(
-            "ارسل كردت العملي",
+            "ارسل ركدت العملي",
             reply_markup=ReplyKeyboardMarkup(
                 [['العودة للقائمة الرئيسية']], resize_keyboard=True, one_time_keyboard=True
             )
@@ -128,7 +120,7 @@ async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.message.reply_text("الرجاء إرسال رقم صحيح أو العودة للقائمة الرئيسية.")
         return GET_PRACTICAL_CREDIT
 
-# Handler for /user_id command - initiates conversation to get message
+# Handler for /user_id command
 async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     user_id = user.id
@@ -139,22 +131,38 @@ async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text("You are not authorized to use this command.")
         return ConversationHandler.END
 
-    await update.message.reply_text("Please send the message you want to forward to the specific person.")
-    return USER_ID_GET_MESSAGE
+    await update.message.reply_text(
+        "Please send your message.",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return USER_ID_WAITING_FOR_MESSAGE
 
-# Handler to receive the message and send to SPECIAL_USER_ID
-async def user_id_get_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    message = update.message.text
+# Handler for processing the user's message in /user_id conversation
+async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text
     user_id = update.effective_user.id
 
-    try:
-        await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=message)
-        await update.message.reply_text(f"The message has been sent to user ID {SPECIAL_USER_ID}.")
-        logger.info(f"Authorized user ID {user_id} sent message to SPECIAL_USER_ID {SPECIAL_USER_ID}.")
-    except Exception as e:
-        logger.error(f"Failed to send message to SPECIAL_USER_ID {SPECIAL_USER_ID}: {e}")
-        await update.message.reply_text("Failed to send the message. Please try again later.")
+    if text:
+        try:
+            await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=text)
+            await update.message.reply_text(f"Message sent: {text}", reply_markup=ReplyKeyboardMarkup(
+                REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
+            ))
+            logger.info(f"Message from user ID {user_id} sent to SPECIAL_USER_ID {SPECIAL_USER_ID}.")
+        except Exception as e:
+            logger.error(f"Failed to send message to SPECIAL_USER_ID {SPECIAL_USER_ID}: {e}")
+            await update.message.reply_text("Message didn't send. Please try again later.")
+    else:
+        await update.message.reply_text("Message didn't send. Please provide valid text.")
 
+    return ConversationHandler.END
+
+# Fallback handler for /user_id conversation
+async def user_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await update.message.reply_text(
+        "تم إلغاء العملية. للبدء من جديد، ارسل /start",
+        reply_markup=ReplyKeyboardRemove()
+    )
     return ConversationHandler.END
 
 # Fallback handler for main conversation
@@ -170,43 +178,21 @@ async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     user = update.effective_user
     user_id = user.id
 
-    if user_id == SPECIAL_USER_ID:
-        # Do not respond to SPECIAL_USER_ID here to prevent conflicts
-        return
+    reply_keyboard = [['حساب غياب النظري', 'حساب غياب العملي']]
 
-    # For all other users, resend the default welcome message
-    welcome_message = (
-        "السلام عليكم \n"
-        "البوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^\n\n"
-        "اذا شكل البوت  لازم ترسل /start  لمرة وحدة فقط"
-    )
+    if user_id == SPECIAL_USER_ID:
+        welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
+    else:
+        welcome_message = (
+            "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^"
+        )
 
     await update.message.reply_text(
         welcome_message,
         reply_markup=ReplyKeyboardMarkup(
-            REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
+            reply_keyboard, one_time_keyboard=True, resize_keyboard=True
         )
     )
-
-# Handler to forward messages from SPECIAL_USER_ID to AUTHORIZED_USER_ID
-async def forward_special_user_messages(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.effective_user
-    user_id = user.id
-
-    if user_id == SPECIAL_USER_ID:
-        try:
-            await context.bot.send_message(chat_id=AUTHORIZED_USER_ID, text=update.message.text)
-            logger.info(f"Forwarded message from SPECIAL_USER_ID {SPECIAL_USER_ID} to AUTHORIZED_USER_ID {AUTHORIZED_USER_ID}.")
-        except Exception as e:
-            logger.error(f"Failed to forward message from SPECIAL_USER_ID {SPECIAL_USER_ID} to AUTHORIZED_USER_ID {AUTHORIZED_USER_ID}: {e}")
-
-# Fallback handler for /user_id conversation
-async def user_id_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text(
-        "تم إلغاء العملية. للبدء من جديد، ارسل /user_id",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    return ConversationHandler.END
 
 def main():
     # Retrieve the bot token from environment variables
@@ -219,7 +205,7 @@ def main():
     # Initialize the bot application
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # Define the main ConversationHandler for /start command
+    # Define the main ConversationHandler
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
@@ -243,27 +229,21 @@ def main():
     user_id_conv_handler = ConversationHandler(
         entry_points=[CommandHandler('user_id', user_id_command)],
         states={
-            USER_ID_GET_MESSAGE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, user_id_get_message)
+            USER_ID_WAITING_FOR_MESSAGE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, user_message_handler)
             ],
         },
-        fallbacks=[CommandHandler('cancel', user_id_cancel)],
+        fallbacks=[CommandHandler('cancel', user_cancel)],
         allow_reentry=True
     )
 
-    # Define a MessageHandler specifically for forwarding messages from SPECIAL_USER_ID
-    forward_handler = MessageHandler(
-        filters.User(user_id=SPECIAL_USER_ID) & filters.TEXT, forward_special_user_messages
-    )
-
-    # Define a general MessageHandler to handle all other non-command messages
+    # Define a general MessageHandler to handle all other messages
     general_handler = MessageHandler(filters.ALL & ~filters.COMMAND, default_handler)
 
-    # Add handlers to the application in the correct order
+    # Add handlers to the application
     application.add_handler(conv_handler)
     application.add_handler(user_id_conv_handler)
-    application.add_handler(forward_handler)  # Must be before general_handler to prioritize forwarding
-    application.add_handler(general_handler)  # This should be added last to avoid overriding
+    application.add_handler(general_handler)  # This should be added last
 
     # Start the bot
     application.run_polling()
