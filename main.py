@@ -1,3 +1,4 @@
+# main.py
 import logging
 import os
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
@@ -8,7 +9,6 @@ from telegram.ext import (
     filters,
     ContextTypes,
     ConversationHandler,
-    PicklePersistence,
 )
 
 # Enable logging
@@ -205,23 +205,19 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
         await update.effective_message.reply_text("An unexpected error occurred. Please try again later.")
 
 def main():
-    # Retrieve the bot token from environment variables
+    # Retrieve the bot token and webhook URL from environment variables
     BOT_TOKEN = os.environ.get("BOT_TOKEN")
-    
+    WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # e.g., 'https://yourdomain.com/webhook'
+
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN environment variable not set.")
         exit(1)
+    if not WEBHOOK_URL:
+        logger.error("WEBHOOK_URL environment variable not set.")
+        exit(1)
 
-    # Initialize the bot application with persistence (optional)
-    # persistence = PicklePersistence(filename='bot_data.pkl')
+    # Initialize the bot application
     application = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    # Optionally remove webhook to prevent conflicts (uncomment if needed)
-    # try:
-    #     application.bot.delete_webhook()
-    #     logger.info("Webhook deleted successfully.")
-    # except Exception as e:
-    #     logger.warning(f"Could not delete webhook: {e}")
 
     # Define the main ConversationHandler
     conv_handler = ConversationHandler(
@@ -266,8 +262,13 @@ def main():
     # Add the error handler
     application.add_error_handler(error_handler)
 
-    # Start the bot with polling
-    application.run_polling()
+    # Set the webhook
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", 8443)),
+        url_path="webhook",
+        webhook_url=f"{WEBHOOK_URL}/webhook"
+    )
 
 if __name__ == '__main__':
     main()
