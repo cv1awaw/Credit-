@@ -35,21 +35,21 @@ MAIN_MENU_KEYBOARD = [['العودة للقائمة الرئيسية']]
 # Message Constants
 WELCOME_MESSAGE_DEFAULT = (
     "السلام عليكم \n"
-    "البوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^\n\n"
-    "ارسل /start اذا البوت بقى ما قبل يشتغل بوحدة من الخيارات"
+    "البوت تم تطويره بواسطة @iwanna2die حتى يساعد الطلاب ^^\n\n"
+    "أرسل /start إذا البوت لم يبدأ بالعمل وحدد أحد الخيارات."
 )
-WELCOME_MESSAGE_SPECIAL = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
-REQUEST_THEORETICAL_CREDIT = "ارسل كردت مادة النظري"
-REQUEST_PRACTICAL_CREDIT = "ارسل ركدت العملي"
+WELCOME_MESSAGE_SPECIAL = "أهلاً زهراء في البوت الخاص بي 🌹\nأتمنى أن تستفيدين منه ^^"
+REQUEST_THEORETICAL_CREDIT = "أرسل رصيد مادة النظري."
+REQUEST_PRACTICAL_CREDIT = "أرسل رصيد العملي."
 REQUEST_OWNER_MESSAGE = "يرجى إرسال رسالتك التي تريد إرسالها إلى صاحب البوت."
 INVALID_CHOICE_MESSAGE = "اختيار غير معروف. الرجاء الاختيار من الأزرار."
 INVALID_NUMBER_MESSAGE = "الرجاء إرسال رقم صحيح أو العودة للقائمة الرئيسية."
-NOT_AUTHORIZED_MESSAGE = "You are not authorized to use this command."
-USER_ID_PROMPT_MESSAGE = "Please send your message."
+NOT_AUTHORIZED_MESSAGE = "أنت غير مخول لاستخدام هذا الأمر."
+USER_ID_PROMPT_MESSAGE = "يرجى إرسال رسالتك."
 MESSAGE_SENT_CONFIRMATION = "تم إرسال رسالتك إلى صاحب البوت. شكرًا لتواصلك!"
-MESSAGE_SEND_FAILURE = "Message didn't send. Please try again later."
+MESSAGE_SEND_FAILURE = "فشل في إرسال الرسالة. يرجى المحاولة لاحقًا."
 CANCEL_MESSAGE = (
-    "تم إلغاء العملية. للبدء من جديد، ارسل /start"
+    "تم إلغاء العملية. للبدء من جديد، أرسل /start."
 )
 HELP_MESSAGE = (
     "هنا بعض الأوامر التي يمكنك استخدامها:\n"
@@ -275,15 +275,15 @@ async def setup_application(application):
     # Delete any existing webhook to avoid conflicts with getUpdates
     try:
         await application.bot.delete_webhook()
-        logger.info("Existing webhooks deleted successfully.")
+        logger.info("تم حذف أي webhooks موجودة بنجاح.")
     except Exception as e:
-        logger.error(f"Failed to delete existing webhook: {e}")
+        logger.error(f"فشل في حذف webhook الموجود: {e}")
 
 async def main():
     # Retrieve the bot token from environment variables
     BOT_TOKEN = os.environ.get("BOT_TOKEN")
     if not BOT_TOKEN:
-        logger.error("BOT_TOKEN environment variable not set.")
+        logger.error("متغير البيئة BOT_TOKEN غير مضبوط.")
         exit(1)
 
     # Initialize the bot application
@@ -343,7 +343,7 @@ async def main():
     await setup_application(application)
 
     # Start the bot
-    logger.info("Bot is starting...")
+    logger.info("البوت يبدأ العمل...")
     await application.run_polling()
 
 if __name__ == '__main__':
