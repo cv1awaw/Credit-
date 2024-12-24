@@ -279,7 +279,7 @@ async def setup_application(application):
     except Exception as e:
         logger.error(f"Failed to delete existing webhook: {e}")
 
-def main():
+async def main():
     # Retrieve the bot token from environment variables
     BOT_TOKEN = os.environ.get("BOT_TOKEN")
     if not BOT_TOKEN:
@@ -340,11 +340,11 @@ def main():
     application.add_error_handler(error_handler)
 
     # Setup application (e.g., delete existing webhooks)
-    asyncio.run(setup_application(application))
+    await setup_application(application)
 
     # Start the bot
     logger.info("Bot is starting...")
-    application.run_polling()
+    await application.run_polling()
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
