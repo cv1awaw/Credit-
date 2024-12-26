@@ -1,6 +1,7 @@
 # main.py
 import logging
 import os
+import json
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     ApplicationBuilder,
@@ -26,7 +27,10 @@ USER_ID_WAITING_FOR_MESSAGE = 4
 
 # Special User IDs
 SPECIAL_USER_ID = 77655677655  # User to receive messages from /user_id command
-AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id command
+AUTHORIZED_USER_ID = 6177929931  # User authorized to use /user_id and mute commands
+
+# Path to the muted users file
+MUTED_USERS_FILE = 'muted_users.json'
 
 # Keyboard layout
 REPLY_KEYBOARD = [
@@ -34,10 +38,32 @@ REPLY_KEYBOARD = [
     ['ارسل رسالة لصاحب البوت']
 ]
 
+# Utility functions to manage muted users
+def load_muted_users():
+    if os.path.exists(MUTED_USERS_FILE):
+        with open(MUTED_USERS_FILE, 'r') as file:
+            try:
+                return set(json.load(file))
+            except json.JSONDecodeError:
+                return set()
+    return set()
+
+def save_muted_users(muted_users):
+    with open(MUTED_USERS_FILE, 'w') as file:
+        json.dump(list(muted_users), file)
+
+# Initialize muted users set
+muted_users = load_muted_users()
+
 # Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     user_id = user.id
+
+    # Check if user is muted
+    if user_id in muted_users:
+        await update.message.reply_text("⚠️ لقد تم كتمك من استخدام هذا البوت.")
+        return ConversationHandler.END
 
     # Log the user ID for debugging
     logger.info(f"User {user.username or 'No Username'} with ID {user_id} started the bot.")
@@ -190,6 +216,75 @@ async def send_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
     return ConversationHandler.END
 
+# Handler for /muteid command
+async def muteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    user_id = user.id
+
+    if user_id != AUTHORIZED_USER_ID:
+        await update.message.reply_text("You are not authorized to use this command.")
+        return
+
+    if len(context.args) != 1:
+        await update.message.reply_text("Usage: /muteid <userid>")
+        return
+
+    try:
+        target_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("Please provide a valid user ID.")
+        return
+
+    if target_id in muted_users:
+        await update.message.reply_text(f"User ID {target_id} is already muted.")
+    else:
+        muted_users.add(target_id)
+        save_muted_users(muted_users)
+        await update.message.reply_text(f"User ID {target_id} has been muted.")
+        logger.info(f"User ID {target_id} has been muted by {user_id}.")
+
+# Handler for /unmuteid command
+async def unmuteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    user_id = user.id
+
+    if user_id != AUTHORIZED_USER_ID:
+        await update.message.reply_text("You are not authorized to use this command.")
+        return
+
+    if len(context.args) != 1:
+        await update.message.reply_text("Usage: /unmuteid <userid>")
+        return
+
+    try:
+        target_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("Please provide a valid user ID.")
+        return
+
+    if target_id in muted_users:
+        muted_users.remove(target_id)
+        save_muted_users(muted_users)
+        await update.message.reply_text(f"User ID {target_id} has been unmuted.")
+        logger.info(f"User ID {target_id} has been unmuted by {user_id}.")
+    else:
+        await update.message.reply_text(f"User ID {target_id} is not muted.")
+
+# Handler for /mutelist command
+async def mutelist_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    user_id = user.id
+
+    if user_id != AUTHORIZED_USER_ID:
+        await update.message.reply_text("You are not authorized to use this command.")
+        return
+
+    if muted_users:
+        muted_list = "\n".join(str(uid) for uid in muted_users)
+        await update.message.reply_text(f"Muted User IDs:\n{muted_list}")
+    else:
+        await update.message.reply_text("No users are currently muted.")
+
 # Fallback handler for /user_id conversation
 async def user_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
@@ -210,6 +305,12 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     user_id = user.id
+
+    # Check if user is muted
+    if user_id in muted_users:
+        # Optionally, notify the user they are muted
+        await update.message.reply_text("⚠️ لقد تم كتمك من استخدام هذا البوت.")
+        return
 
     reply_keyboard = [
         ['حساب غياب النظري', 'حساب غياب العملي'],
@@ -290,6 +391,9 @@ def main():
     # Add handlers to the application
     application.add_handler(conv_handler)
     application.add_handler(user_id_conv_handler)
+    application.add_handler(CommandHandler('muteid', muteid_command))
+    application.add_handler(CommandHandler('unmuteid', unmuteid_command))
+    application.add_handler(CommandHandler('mutelist', mutelist_command))
     application.add_handler(general_handler)  # This should be added last
 
     # Add the error handler
