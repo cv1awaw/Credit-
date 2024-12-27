@@ -14,15 +14,17 @@ from telegram.ext import (
 # Set logging to INFO for less verbosity
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO  
+    level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
 # Define states for the main conversation
 CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT, SEND_MESSAGE = range(4)
-
-# Define additional state for /user_id command
 USER_ID_WAITING_FOR_MESSAGE = 5
+
+# <-- ADDED: Define new states for بلبلوك calculation.
+BLOK_MATERIA, BLOK_TOTAL, BLOK_TAKEN = range(6, 9)
+# ----------------------------------------
 
 # IDs
 SPECIAL_USER_ID = 77655677655    # Example special user
@@ -34,7 +36,7 @@ MUTED_USERS_FILE = 'muted_users.json'
 # Main menu keyboard
 MAIN_MENU_KEYBOARD = [
     ['حساب غياب النظري', 'حساب غياب العملي'],
-    ['ارسل رسالة لصاحب البوت']
+    ['ارسل رسالة لصاحب البوت', 'حساب درجتك بلبلوك']  # <-- ADDED the new option
 ]
 
 # Utility functions for loading/saving muted users
@@ -102,7 +104,7 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text(
             "ارسل كردت مادة النظري",
             reply_markup=ReplyKeyboardMarkup(
-                [['العودة للقائمة الرئيسية']], 
+                [['العودة للقائمة الرئيسية']],
                 resize_keyboard=True,
                 one_time_keyboard=True
             )
@@ -113,7 +115,7 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text(
             "ارسل ركدت العملي",
             reply_markup=ReplyKeyboardMarkup(
-                [['العودة للقائمة الرئيسية']], 
+                [['العودة للقائمة الرئيسية']],
                 resize_keyboard=True,
                 one_time_keyboard=True
             )
@@ -126,6 +128,19 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             reply_markup=ReplyKeyboardRemove()
         )
         return SEND_MESSAGE
+
+    # <-- ADDED: Option to calculate بلبلوك
+    elif text == 'حساب درجتك بلبلوك':
+        await update.message.reply_text(
+            "شكد المادة عليها بلبلوك؟",
+            reply_markup=ReplyKeyboardMarkup(
+                [['العودة للقائمة الرئيسية']],
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
+        )
+        return BLOK_MATERIA
+    # ------------------------------------
 
     else:
         await update.message.reply_text("خيار غير معروف!")
@@ -169,6 +184,95 @@ async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     # Return to main menu
     await show_main_menu(update, context)
     return CHOOSING_OPTION
+
+# <-- ADDED: Handlers for the new بلبلوك flow
+async def blok_materia(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    First step: Ask "شكد المادة عليها بلبلوك؟"
+    We'll store the user's input in context.user_data['blok_materia'].
+    Then ask the next question.
+    """
+    text = (update.message.text or "").strip()
+
+    if text == 'العودة للقائمة الرئيسية':
+        await show_main_menu(update, context)
+        return CHOOSING_OPTION
+
+    try:
+        context.user_data['blok_materia'] = float(text)
+        await update.message.reply_text(
+            "شكد الدرجة الكلية لهذي المادة؟",
+            reply_markup=ReplyKeyboardMarkup(
+                [['العودة للقائمة الرئيسية']],
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
+        )
+        return BLOK_TOTAL
+    except ValueError:
+        await update.message.reply_text("الرجاء إدخال رقم صالح.")
+        return BLOK_MATERIA
+
+async def blok_total(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Second step: Ask "شكد الدرجة الكلية لهذي المادة؟"
+    We'll store the user's input in context.user_data['blok_total'].
+    Then ask the next question.
+    """
+    text = (update.message.text or "").strip()
+
+    if text == 'العودة للقائمة الرئيسية':
+        await show_main_menu(update, context)
+        return CHOOSING_OPTION
+
+    try:
+        context.user_data['blok_total'] = float(text)
+        await update.message.reply_text(
+            "شكد خذيت؟",
+            reply_markup=ReplyKeyboardMarkup(
+                [['العودة للقائمة الرئيسية']],
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
+        )
+        return BLOK_TAKEN
+    except ValueError:
+        await update.message.reply_text("الرجاء إدخال رقم صالح.")
+        return BLOK_TOTAL
+
+async def blok_taken(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Third step: Ask "شكد خذيت؟"
+    We'll do the calculation: ( blok_materia * blok_taken ) / blok_total
+    Then show the result and return to main menu.
+    """
+    text = (update.message.text or "").strip()
+
+    if text == 'العودة للقائمة الرئيسية':
+        await show_main_menu(update, context)
+        return CHOOSING_OPTION
+
+    try:
+        blok_taken_value = float(text)
+
+        blok_materia_value = context.user_data.get('blok_materia', 0)
+        blok_total_value = context.user_data.get('blok_total', 1)  # avoid zero-division
+
+        # Perform calculation
+        result = (blok_materia_value * blok_taken_value) / blok_total_value
+
+        await update.message.reply_text(
+            f"درجتك بلبلوك هي: {result}\n"
+            f"(ناتج معادلة: ({blok_materia_value} × {blok_taken_value}) ÷ {blok_total_value})"
+        )
+
+    except ValueError:
+        await update.message.reply_text("الرجاء إدخال رقم صالح.")
+
+    # Regardless of success/failure, show main menu again
+    await show_main_menu(update, context)
+    return CHOOSING_OPTION
+# ------------------------------------
 
 # Handler to send a message to the bot owner
 async def send_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -338,6 +442,18 @@ def main():
             SEND_MESSAGE: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, send_message_handler),
             ],
+
+            # <-- ADDED: States for the بلبلوك flow
+            BLOK_MATERIA: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, blok_materia),
+            ],
+            BLOK_TOTAL: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, blok_total),
+            ],
+            BLOK_TAKEN: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, blok_taken),
+            ],
+            # ------------------------------------
         },
         fallbacks=[CommandHandler('cancel', cancel)],
         allow_reentry=False
