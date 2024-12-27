@@ -12,7 +12,7 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler
 )
-from telegram.ext.filters import MessageFilter  # <-- For the custom filter
+from telegram.ext.filters import MessageFilter  # For the custom filter
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -25,6 +25,9 @@ CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT, SEND_MESSAGE = ra
 BLOK_MATERIA, BLOK_TOTAL, BLOK_TAKEN = range(5, 8)
 USER_ID_WAITING_FOR_MESSAGE = 10
 BROADCAST_ASK_MESSAGE, BROADCAST_CONFIRMATION = range(20, 22)
+
+# NEW STATE for /user_m command
+USER_M_WAITING_FOR_MESSAGE = 30
 
 # IDs
 SPECIAL_USER_ID = 77655677655
@@ -317,6 +320,60 @@ async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text("لا يوجد نص في الرسالة!")
     return ConversationHandler.END
 
+# =============== NEW: /user_m <userid> command ===============
+# 1) We define the command to parse the target user ID
+async def user_m_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Usage: /user_m <userid>
+    Bot will ask for a message and then send it to that user.
+    """
+    if update.effective_user.id != AUTHORIZED_USER_ID:
+        await update.message.reply_text("You are not authorized to use this command.")
+        return ConversationHandler.END
+
+    if len(context.args) != 1:
+        await update.message.reply_text("Usage: /user_m <userid>")
+        return ConversationHandler.END
+
+    try:
+        target_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("Invalid user ID. Must be an integer.")
+        return ConversationHandler.END
+
+    # Store the target user ID in user_data so we can retrieve it later
+    context.user_data['target_user_id'] = target_id
+
+    # Prompt the authorized user for a message
+    await update.message.reply_text(
+        f"ستقوم بإرسال رسالة إلى {target_id}. اكتب الرسالة الآن:",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return USER_M_WAITING_FOR_MESSAGE
+
+# 2) We define the handler that actually sends the message
+async def user_m_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = (update.message.text or "").strip()
+    if not text:
+        await update.message.reply_text("لم يتم العثور على نص للرسالة!")
+        return ConversationHandler.END
+
+    # Retrieve target user ID
+    target_id = context.user_data.get('target_user_id')
+    if not target_id:
+        await update.message.reply_text("لم أجد user_id! أعد العملية.")
+        return ConversationHandler.END
+
+    # Attempt to send message
+    try:
+        await context.bot.send_message(chat_id=target_id, text=text)
+        await update.message.reply_text(f"تم إرسال رسالتك إلى {target_id} بنجاح!")
+    except Exception as e:
+        logger.error(f"Failed sending message to {target_id}: {e}")
+        await update.message.reply_text("حصل خطأ أثناء إرسال الرسالة.")
+    return ConversationHandler.END
+# =============================================================
+
 # Broadcast flow
 async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if update.effective_user.id != AUTHORIZED_USER_ID:
@@ -426,7 +483,7 @@ class MuteFilter(MessageFilter):
     """
     def filter(self, message):
         if message.from_user is None:
-            return False  # e.g., channel post
+            return False  # e.g., channel post or no user
         return message.from_user.id in muted_users
 
 async def handle_muted(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -436,7 +493,7 @@ async def handle_muted(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     user = update.effective_user
     if not user:
-        return  # No user? Possibly a channel post. Just ignore.
+        return  # Possibly a channel post, so do nothing.
 
     user_id = user.id
     username = user.username or f"ID {user_id}"
@@ -458,7 +515,6 @@ async def handle_muted(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Respond to the muted user
     await update.message.reply_text("⚠️ أنت مكتوم ولا يمكنك استخدام البوت.")
-    # Not returning anything => no further handlers are called for this update.
 
 # ==============================================================================
 
@@ -497,9 +553,8 @@ def main():
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # 1) Create an instance of our custom MuteFilter
+    # Highest priority: Mute filter
     mute_filter = MuteFilter()
-    # 2) Add handler at group=0 so it runs first for muted users
     app.add_handler(MessageHandler(mute_filter, handle_muted), group=0)
 
     # Main conversation
@@ -544,7 +599,7 @@ def main():
         allow_reentry=False
     )
 
-    # Broadcast conversation
+    # /new broadcast conversation
     broadcast_conv = ConversationHandler(
         entry_points=[CommandHandler('new', broadcast_start)],
         states={
@@ -559,10 +614,23 @@ def main():
         allow_reentry=False
     )
 
+    # /user_m conversation
+    user_m_conv = ConversationHandler(
+        entry_points=[CommandHandler('user_m', user_m_command)],
+        states={
+            USER_M_WAITING_FOR_MESSAGE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, user_m_message_handler)
+            ],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
+        allow_reentry=False
+    )
+
     # Register conversation handlers
     app.add_handler(conv_handler)
     app.add_handler(user_id_conv)
     app.add_handler(broadcast_conv)
+    app.add_handler(user_m_conv)
 
     # Register commands
     app.add_handler(CommandHandler('muteid', muteid_command))
