@@ -26,7 +26,7 @@ BLOK_MATERIA, BLOK_TOTAL, BLOK_TAKEN = range(5, 8)
 USER_ID_WAITING_FOR_MESSAGE = 10
 BROADCAST_ASK_MESSAGE, BROADCAST_CONFIRMATION = range(20, 22)
 
-# NEW STATE for /hey command
+# NEW STATES for /hey command
 HEY_WAITING_FOR_MESSAGE = 999
 
 # IDs
@@ -62,7 +62,7 @@ def load_override_welcomes():
 
 def save_override_welcomes(mapping):
     """
-    Save dictionary { user_id: custom_message } to JSON as { user_id_str: custom_message }
+    Save dictionary { user_id: custom_message } to JSON as { "user_id": "msg" }
     """
     to_save = {str(k): v for k, v in mapping.items()}
     with open(WELCOME_MSGS_FILE, 'w', encoding='utf-8') as f:
@@ -352,13 +352,12 @@ async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text("لا يوجد نص في الرسالة!")
     return ConversationHandler.END
 
+# /hey <userid> -> set custom welcome
+HEY_WAITING_FOR_MESSAGE = 999
 
-# =============== NEW: /hey <userid> for custom welcome messages ===============
 async def hey_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     /hey <userid>
-    - Only the authorized user can do this.
-    - We'll store the user ID in context.user_data and ask for the custom welcome message.
     """
     if update.effective_user.id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
@@ -384,7 +383,6 @@ async def hey_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 async def hey_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     Handles the custom welcome text from the authorized user.
-    Saves it to override_welcome_messages, then writes to JSON.
     """
     new_msg = (update.message.text or "").strip()
     if not new_msg:
@@ -396,7 +394,6 @@ async def hey_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("لم أجد user_id! أعد العملية.")
         return ConversationHandler.END
 
-    # Save the new welcome to our dictionary
     override_welcome_messages[target_id] = new_msg
     save_override_welcomes(override_welcome_messages)
 
@@ -405,7 +402,36 @@ async def hey_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"الترحيب الجديد: {new_msg}"
     )
     return ConversationHandler.END
-# ==============================================================================
+
+# /hey_r <userid> -> remove custom welcome
+async def hey_remove_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    /hey_r <userid>
+    Removes the custom welcome message for that user.
+    """
+    if update.effective_user.id != AUTHORIZED_USER_ID:
+        await update.message.reply_text("You are not authorized to use this command.")
+        return
+
+    if len(context.args) != 1:
+        await update.message.reply_text("Usage: /hey_r <userid>")
+        return
+
+    try:
+        target_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("Invalid user ID. Must be an integer.")
+        return
+
+    if target_id in override_welcome_messages:
+        del override_welcome_messages[target_id]
+        save_override_welcomes(override_welcome_messages)
+        await update.message.reply_text(
+            f"تم حذف رسالة الترحيب المخصصة للمستخدم {target_id}.\n"
+            "الآن سيحصل على الرسالة الافتراضية عند استخدام /start."
+        )
+    else:
+        await update.message.reply_text("هذا المستخدم ليس لديه رسالة ترحيب مخصصة.")
 
 # Broadcast flow
 async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -507,6 +533,37 @@ async def mutelist_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     else:
         await update.message.reply_text("No muted users.")
 
+# =================== /help Command ======================
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    if user_id == AUTHORIZED_USER_ID:
+        # Show all authorized commands
+        admin_help_text = (
+            "🚀 أوامر المشرف:\n\n"
+            "/help - إظهار هذه القائمة.\n"
+            "/start - بدء المحادثة أو عرض القائمة.\n"
+            "/muteid <userid> - كتم مستخدم.\n"
+            "/unmuteid <userid> - إلغاء كتم مستخدم.\n"
+            "/mutelist - عرض المستخدمين المكتومين.\n"
+            "/user_id - إرسال رسالة إلى SPECIAL_USER_ID.\n"
+            "/user_m <userid> - إرسال رسالة إلى user_id.\n"
+            "/hey <userid> - تعيين رسالة ترحيب مخصصة.\n"
+            "/hey_r <userid> - حذف رسالة الترحيب المخصصة.\n"
+            "/new - إرسال رسالة جماعية لجميع المستخدمين.\n"
+            "/cancel - إلغاء العملية الحالية.\n"
+        )
+        await update.message.reply_text(admin_help_text)
+    else:
+        # Basic help for normal users
+        user_help_text = (
+            "مرحباً! أنا بوت للمساعدة.\n"
+            "الأوامر المتاحة:\n"
+            "/start - بدء المحادثة أو عرض القائمة\n"
+            "/help - عرض هذه الرسالة\n"
+        )
+        await update.message.reply_text(user_help_text)
+
+
 # ========== HIGHEST-PRIORITY HANDLER FOR MUTED USERS (Custom Filter) ==========
 
 class MuteFilter(MessageFilter):
@@ -520,10 +577,6 @@ class MuteFilter(MessageFilter):
         return message.from_user.id in muted_users
 
 async def handle_muted(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Called if MuteFilter is True. Notifies AUTHORIZED_USER_ID about
-    the muted user's attempt, and tells the user they're muted.
-    """
     user = update.effective_user
     if not user:
         return
@@ -666,9 +719,11 @@ def main():
     app.add_handler(hey_conv)
 
     # Register commands
+    app.add_handler(CommandHandler('hey_r', hey_remove_command))
     app.add_handler(CommandHandler('muteid', muteid_command))
     app.add_handler(CommandHandler('unmuteid', unmuteid_command))
     app.add_handler(CommandHandler('mutelist', mutelist_command))
+    app.add_handler(CommandHandler('help', help_command))  # <--- Our new /help command
 
     # Fallback for anything else
     app.add_handler(MessageHandler(filters.ALL, default_handler))
