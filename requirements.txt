@@ -1,0 +1,3 @@
+# python-telegram-bot 20.x requires Python 3.7+ 
+# Pin to a stable version you’ve tested, for example 20.5:
+python-telegram-bot==20.5
