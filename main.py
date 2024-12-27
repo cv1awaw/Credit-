@@ -77,7 +77,6 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Handles /start command. We'll add a brief async sleep to reduce collisions."""
     user = update.effective_user
     user_id = user.id
 
@@ -86,7 +85,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         known_users.add(user_id)
         save_users(known_users)
 
-    # Check mute
+    # Check mute (no need if using our new top-priority check, but safe to keep)
     if user_id in muted_users:
         await update.message.reply_text("⚠️ لقد تم كتمك من استخدام هذا البوت.")
         return ConversationHandler.END
@@ -102,12 +101,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             "اهلا وسهلا!"
         )
 
-    # Send greeting
     await update.message.reply_text(welcome)
 
     # Optionally wait a fraction of a second
-    # so that if the user taps a button extremely quickly,
-    # we have time to finalize states.
     await asyncio.sleep(0.3)
 
     # Show main menu
@@ -368,7 +364,7 @@ async def broadcast_confirmation(update: Update, context: ContextTypes.DEFAULT_T
 
     return ConversationHandler.END
 
-# Mute/Unmute/Mutelist
+# Mute/Unmute/Mutelist commands
 async def muteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized.")
@@ -424,18 +420,25 @@ async def mutelist_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     else:
         await update.message.reply_text("No muted users.")
 
+# Highest-priority handler to block muted users
+async def handle_muted(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    This handler catches any message from a muted user and stops further handling.
+    """
+    await update.message.reply_text("⚠️ أنت مكتوم ولا يمكنك استخدام البوت.")
+    # No return => the update won't be passed to subsequent handlers.
+
 # Fallback & default
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("تم إلغاء العملية.")
     return ConversationHandler.END
 
 async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    Called if a message doesn't match any active conversation states or commands.
-    We politely tell the user to use /start or the menu. 
-    """
+    # If the user is muted, they'll be caught by handle_muted.
+    # If not muted, we show a default message.
     user_id = update.effective_user.id
     if user_id in muted_users:
+        # If code ever gets here, we're still consistent
         await update.message.reply_text("⚠️ أنت مكتوم.")
         return
 
@@ -463,6 +466,21 @@ def main():
         logger.warning(f"No webhook to delete or error: {e}")
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    # =========== MUTE CHECK HANDLER (Highest Priority) ===========
+    # If 'muted_users' is large or changes often, consider a dynamic filter.
+    if muted_users:
+        # Filter messages from any user in muted_users
+        mute_filter = filters.User(user_id=list(muted_users))
+        # group=0 => highest priority; if user is muted, no other handlers are checked.
+        app.add_handler(MessageHandler(mute_filter, handle_muted), group=0)
+    else:
+        # Or always keep a dynamic filter if you want immediate changes:
+        # from telegram.ext.filters import create
+        # def is_muted(msg): return msg.from_user.id in muted_users
+        # app.add_handler(MessageHandler(create(is_muted), handle_muted), group=0)
+        pass
+    # =============================================================
 
     # Main conversation
     conv_handler = ConversationHandler(
@@ -494,6 +512,7 @@ def main():
         allow_reentry=False
     )
 
+    # Additional conversation for /user_id
     user_id_conv = ConversationHandler(
         entry_points=[CommandHandler('user_id', user_id_command)],
         states={
@@ -505,6 +524,7 @@ def main():
         allow_reentry=False
     )
 
+    # Broadcast conversation
     broadcast_conv = ConversationHandler(
         entry_points=[CommandHandler('new', broadcast_start)],
         states={
@@ -519,17 +539,20 @@ def main():
         allow_reentry=False
     )
 
-    # Register
+    # Register conversation handlers
     app.add_handler(conv_handler)
     app.add_handler(user_id_conv)
     app.add_handler(broadcast_conv)
 
+    # Register commands
     app.add_handler(CommandHandler('muteid', muteid_command))
     app.add_handler(CommandHandler('unmuteid', unmuteid_command))
     app.add_handler(CommandHandler('mutelist', mutelist_command))
 
+    # Fallback: anything else
     app.add_handler(MessageHandler(filters.ALL, default_handler))
 
+    # Register error handler
     app.add_error_handler(error_handler)
 
     logger.info("Running bot with polling...")
