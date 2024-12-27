@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+import asyncio
 from telegram import Bot, Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     ApplicationBuilder,
@@ -11,40 +12,31 @@ from telegram.ext import (
     ConversationHandler,
 )
 
-# Set logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# States for main conversation
+# States
 CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT, SEND_MESSAGE = range(4)
-
-# States for بلبلوك flow
 BLOK_MATERIA, BLOK_TOTAL, BLOK_TAKEN = range(5, 8)
-
-# State for /user_id conversation
 USER_ID_WAITING_FOR_MESSAGE = 10
-
-# States for broadcast
 BROADCAST_ASK_MESSAGE, BROADCAST_CONFIRMATION = range(20, 22)
 
 # IDs
 SPECIAL_USER_ID = 77655677655
 AUTHORIZED_USER_ID = 6177929931
 
-# JSON files
+# JSON
 MUTED_USERS_FILE = 'muted_users.json'
 USERS_FILE = 'users.json'
 
-# Main menu keyboard
 MAIN_MENU_KEYBOARD = [
     ['حساب غياب النظري', 'حساب غياب العملي'],
     ['ارسل رسالة لصاحب البوت', 'حساب درجتك بلبلوك']
 ]
 
-# ---------- Load & Save Functions ----------
 def load_muted_users():
     if os.path.exists(MUTED_USERS_FILE):
         with open(MUTED_USERS_FILE, 'r') as f:
@@ -74,9 +66,7 @@ def save_users(users):
 muted_users = load_muted_users()
 known_users = load_users()
 
-# ---------- Shared Helper ----------
-async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Displays the main menu keyboard."""
+async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "اختر من القائمة:",
         reply_markup=ReplyKeyboardMarkup(
@@ -86,63 +76,69 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
     )
 
-# ---------- /start Handler ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handles /start command. We'll add a brief async sleep to reduce collisions."""
     user = update.effective_user
     user_id = user.id
 
-    # Track users so we can broadcast to them
+    # Record user
     if user_id not in known_users:
         known_users.add(user_id)
         save_users(known_users)
 
-    # Check if muted
+    # Check mute
     if user_id in muted_users:
         await update.message.reply_text("⚠️ لقد تم كتمك من استخدام هذا البوت.")
         return ConversationHandler.END
 
-    logger.info(f"User {user.username or user_id} started the bot.")
+    logger.info(f"User {user.username or user_id} used /start")
 
-    # Special greeting?
+    # Personalized vs default
     if user_id == SPECIAL_USER_ID:
-        welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
+        welcome = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
     else:
-        welcome_message = (
+        welcome = (
             "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^\n\n"
             "اهلا وسهلا!"
         )
 
-    await update.message.reply_text(welcome_message)
+    # Send greeting
+    await update.message.reply_text(welcome)
+
+    # Optionally wait a fraction of a second
+    # so that if the user taps a button extremely quickly,
+    # we have time to finalize states.
+    await asyncio.sleep(0.3)
+
+    # Show main menu
     await show_main_menu(update, context)
+
     return CHOOSING_OPTION
 
-# ---------- Choice Handler ----------
 async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = (update.message.text or "").strip()
 
     if text == 'حساب غياب النظري':
         await update.message.reply_text(
-            "اكتب **رقم** الكردت لمادة النظري (مثال: 3.0)."
+            "اكتب رقم الكردت لمادة النظري (مثال: 3.0)."
             "\n\nأو اختر 'العودة للقائمة الرئيسية' في الأسفل:",
             reply_markup=ReplyKeyboardMarkup(
                 [['العودة للقائمة الرئيسية']],
-                resize_keyboard=True,
-                one_time_keyboard=True
-            ),
-            parse_mode="Markdown"
+                one_time_keyboard=True,
+                resize_keyboard=True
+            )
         )
         return GET_THEORETICAL_CREDIT
 
     elif text == 'حساب غياب العملي':
         await update.message.reply_text(
-            "اكتب **رقم** الكردت لمادة العملي (مثال: 1.5)."
+            "اكتب رقم الكردت لمادة العملي (مثال: 1.5)."
             "\n\nأو اختر 'العودة للقائمة الرئيسية' في الأسفل:",
             reply_markup=ReplyKeyboardMarkup(
                 [['العودة للقائمة الرئيسية']],
-                resize_keyboard=True,
-                one_time_keyboard=True
-            ),
-            parse_mode="Markdown"
+                one_time_keyboard=True,
+                resize_keyboard=True
+            )
         )
         return GET_PRACTICAL_CREDIT
 
@@ -162,23 +158,20 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             "شكد المادة عليها بلبلوك؟ (اكتب رقم فقط)",
             reply_markup=ReplyKeyboardMarkup(
                 [['العودة للقائمة الرئيسية']],
-                resize_keyboard=True,
-                one_time_keyboard=True
+                one_time_keyboard=True,
+                resize_keyboard=True
             )
         )
         return BLOK_MATERIA
 
     else:
-        # Unrecognized choice
         await update.message.reply_text("خيار غير معروف!")
         await show_main_menu(update, context)
         return CHOOSING_OPTION
 
-# ---------- نظري / عملي ----------
 async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = (update.message.text or "").strip()
 
-    # Allow returning to main menu
     if text == 'العودة للقائمة الرئيسية':
         await show_main_menu(update, context)
         return CHOOSING_OPTION
@@ -189,10 +182,7 @@ async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text(f"غيابك للنظري هو: {result}")
     except ValueError:
         await update.message.reply_text(
-            "الرجاء إدخال **رقم** فقط.\n\n"
-            "مثال: 3.0 أو 2.5\n"
-            "أو اختر 'العودة للقائمة الرئيسية' للرجوع.",
-            parse_mode="Markdown"
+            "الرجاء إدخال رقم فقط.\nمثال: 3.0 أو 2.5\nأو اختر العودة للقائمة الرئيسية."
         )
         return GET_THEORETICAL_CREDIT
 
@@ -212,20 +202,16 @@ async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.message.reply_text(f"غيابك للعملي هو: {result}")
     except ValueError:
         await update.message.reply_text(
-            "الرجاء إدخال **رقم** فقط.\n\n"
-            "مثال: 1 أو 1.5\n"
-            "أو اختر 'العودة للقائمة الرئيسية' للرجوع.",
-            parse_mode="Markdown"
+            "الرجاء إدخال رقم فقط.\nمثال: 1 أو 1.5\nأو اختر العودة للقائمة الرئيسية."
         )
         return GET_PRACTICAL_CREDIT
 
     await show_main_menu(update, context)
     return CHOOSING_OPTION
 
-# ---------- بلبلوك Flow ----------
+# بلبلوك
 async def blok_materia(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = (update.message.text or "").strip()
-
     if text == 'العودة للقائمة الرئيسية':
         await show_main_menu(update, context)
         return CHOOSING_OPTION
@@ -236,8 +222,8 @@ async def blok_materia(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
             "شكد الدرجة الكلية لهذي المادة؟ (اكتب رقم فقط)",
             reply_markup=ReplyKeyboardMarkup(
                 [['العودة للقائمة الرئيسية']],
-                resize_keyboard=True,
-                one_time_keyboard=True
+                one_time_keyboard=True,
+                resize_keyboard=True
             )
         )
         return BLOK_TOTAL
@@ -247,7 +233,6 @@ async def blok_materia(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 async def blok_total(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = (update.message.text or "").strip()
-
     if text == 'العودة للقائمة الرئيسية':
         await show_main_menu(update, context)
         return CHOOSING_OPTION
@@ -258,8 +243,8 @@ async def blok_total(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             "شكد خذيت؟ (اكتب رقم فقط)",
             reply_markup=ReplyKeyboardMarkup(
                 [['العودة للقائمة الرئيسية']],
-                resize_keyboard=True,
-                one_time_keyboard=True
+                one_time_keyboard=True,
+                resize_keyboard=True
             )
         )
         return BLOK_TAKEN
@@ -269,7 +254,6 @@ async def blok_total(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def blok_taken(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = (update.message.text or "").strip()
-
     if text == 'العودة للقائمة الرئيسية':
         await show_main_menu(update, context)
         return CHOOSING_OPTION
@@ -287,10 +271,9 @@ async def blok_taken(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await show_main_menu(update, context)
     return CHOOSING_OPTION
 
-# ---------- ارسل رسالة لصاحب البوت ----------
+# ارسل رسالة لصاحب البوت
 async def send_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = (update.message.text or "").strip()
-
     if text == 'العودة للقائمة الرئيسية':
         await show_main_menu(update, context)
         return CHOOSING_OPTION
@@ -313,10 +296,9 @@ async def send_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     await show_main_menu(update, context)
     return CHOOSING_OPTION
 
-# ---------- /user_id Flow (Send message to SPECIAL_USER_ID) ----------
+# /user_id -> message to SPECIAL_USER_ID
 async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user = update.effective_user
-    if user.id != AUTHORIZED_USER_ID:
+    if update.effective_user.id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
         return ConversationHandler.END
 
@@ -342,12 +324,9 @@ async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text("لا يوجد نص في الرسالة!")
     return ConversationHandler.END
 
-# ---------- Broadcast Flow (/new) ----------
-BROADCAST_ASK_MESSAGE, BROADCAST_CONFIRMATION = range(20, 22)
-
+# Broadcast flow
 async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user = update.effective_user
-    if user.id != AUTHORIZED_USER_ID:
+    if update.effective_user.id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
         return ConversationHandler.END
 
@@ -369,7 +348,6 @@ async def broadcast_ask_message(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def broadcast_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = (update.message.text or "").strip()
-
     if text == "نعم، إرسال":
         broadcast_msg = context.user_data.get('broadcast_msg', "")
         if not broadcast_msg:
@@ -390,10 +368,9 @@ async def broadcast_confirmation(update: Update, context: ContextTypes.DEFAULT_T
 
     return ConversationHandler.END
 
-# ---------- Mute/Unmute/Mutelist ----------
+# Mute/Unmute/Mutelist
 async def muteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.effective_user
-    if user.id != AUTHORIZED_USER_ID:
+    if update.effective_user.id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized.")
         return
 
@@ -415,8 +392,7 @@ async def muteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text(f"User {target_id} has been muted.")
 
 async def unmuteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.effective_user
-    if user.id != AUTHORIZED_USER_ID:
+    if update.effective_user.id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized.")
         return
 
@@ -438,8 +414,7 @@ async def unmuteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.message.reply_text("User is not muted.")
 
 async def mutelist_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.effective_user
-    if user.id != AUTHORIZED_USER_ID:
+    if update.effective_user.id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized.")
         return
 
@@ -449,15 +424,15 @@ async def mutelist_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     else:
         await update.message.reply_text("No muted users.")
 
-# ---------- Fallback & Default ----------
+# Fallback & default
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("تم إلغاء العملية.")
     return ConversationHandler.END
 
 async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    This is called when user messages don't match any conversation states or commands.
-    We inform them to use /start or the menu buttons.
+    Called if a message doesn't match any active conversation states or commands.
+    We politely tell the user to use /start or the menu. 
     """
     user_id = update.effective_user.id
     if user_id in muted_users:
@@ -468,29 +443,26 @@ async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         "لم أفهم رسالتك، استخدم الأزرار في الأسفل أو اكتب /start للبدء من جديد."
     )
 
-# Error handler
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error("Exception while handling an update:", exc_info=context.error)
     if isinstance(update, Update) and update.effective_message:
         await update.effective_message.reply_text("عذراً حصل خطأ. حاول مجدداً.")
 
-# ---------- Main ----------
 def main():
     BOT_TOKEN = os.environ.get("BOT_TOKEN")
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN is not set.")
         return
 
-    # Delete any existing webhook to avoid 409 conflicts if we only do polling
+    # Remove any leftover webhook if we only do polling
     try:
         bot = Bot(token=BOT_TOKEN)
         bot.delete_webhook(drop_pending_updates=True)
-        logger.info("Webhook deleted (if existed).")
+        logger.info("Webhook deleted to avoid 409 conflicts.")
     except Exception as e:
-        logger.warning(f"No webhook to delete or error while deleting webhook: {e}")
+        logger.warning(f"No webhook to delete or error: {e}")
 
-    # Build the application
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     # Main conversation
     conv_handler = ConversationHandler(
@@ -522,8 +494,7 @@ def main():
         allow_reentry=False
     )
 
-    # /user_id conversation
-    user_id_conv_handler = ConversationHandler(
+    user_id_conv = ConversationHandler(
         entry_points=[CommandHandler('user_id', user_id_command)],
         states={
             USER_ID_WAITING_FOR_MESSAGE: [
@@ -534,8 +505,7 @@ def main():
         allow_reentry=False
     )
 
-    # Broadcast conversation
-    broadcast_conv_handler = ConversationHandler(
+    broadcast_conv = ConversationHandler(
         entry_points=[CommandHandler('new', broadcast_start)],
         states={
             BROADCAST_ASK_MESSAGE: [
@@ -549,25 +519,21 @@ def main():
         allow_reentry=False
     )
 
-    # Register handlers
-    application.add_handler(conv_handler)
-    application.add_handler(user_id_conv_handler)
-    application.add_handler(broadcast_conv_handler)
+    # Register
+    app.add_handler(conv_handler)
+    app.add_handler(user_id_conv)
+    app.add_handler(broadcast_conv)
 
-    # Mute/Unmute/Mutelist commands
-    application.add_handler(CommandHandler('muteid', muteid_command))
-    application.add_handler(CommandHandler('unmuteid', unmuteid_command))
-    application.add_handler(CommandHandler('mutelist', mutelist_command))
+    app.add_handler(CommandHandler('muteid', muteid_command))
+    app.add_handler(CommandHandler('unmuteid', unmuteid_command))
+    app.add_handler(CommandHandler('mutelist', mutelist_command))
 
-    # Default handler
-    application.add_handler(MessageHandler(filters.ALL, default_handler))
+    app.add_handler(MessageHandler(filters.ALL, default_handler))
 
-    # Error handler
-    application.add_error_handler(error_handler)
+    app.add_error_handler(error_handler)
 
-    # Run bot with polling
-    logger.info("Starting bot with polling...")
-    application.run_polling(drop_pending_updates=True)
+    logger.info("Running bot with polling...")
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
     main()
