@@ -1,7 +1,5 @@
-# Use a base image with essential build tools
 FROM ubuntu:22.04
 
-# Install OS packages needed to build TgBot & your code
 RUN apt-get update && apt-get install -y \
     g++ \
     cmake \
@@ -11,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     libboost-iostreams-dev \
     libcurl4-openssl-dev \
     git \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Build TgBot from source
@@ -23,11 +22,9 @@ RUN mkdir build && cd build && cmake .. && make -j4 && make install
 WORKDIR /app
 COPY . /app
 
-# Build your bot with CMake
+# Build your bot
 RUN mkdir build && cd build && cmake .. && make -j4
 
-# Set environment variable BOT_TOKEN at runtime (Railway does this, or you do it manually)
+# Set BOT_TOKEN at runtime (Railway can do this under "Variables")
 ENV BOT_TOKEN=""
-
-# By default, run the compiled bot
 CMD ["./build/MyTelegramBot"]
