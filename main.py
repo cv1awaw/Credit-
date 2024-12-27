@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # Define states for the main conversation
 CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT, SEND_MESSAGE = range(4)
 
-# We need more states for the بلبلوك flow
+# States for بلبلوك flow
 BLOK_MATERIA, BLOK_TOTAL, BLOK_TAKEN = range(5, 8)
 
 # This extra state is for the /user_id command flow
@@ -57,7 +57,7 @@ def save_muted_users(muted_users):
 # Initialize the set of muted users
 muted_users = load_muted_users()
 
-# Helper function to show the main menu (without resetting the conversation)
+# Helper function to show the main menu
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Sends the main menu keyboard."""
     await update.message.reply_text(
@@ -91,13 +91,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         )
 
     await update.message.reply_text(welcome_message)
-    # Then show the main menu
     await show_main_menu(update, context)
 
-    # Move to the CHOOSING_OPTION state
     return CHOOSING_OPTION
 
-# Choice handler
 async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = (update.message.text or "").strip()
 
@@ -131,7 +128,6 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return SEND_MESSAGE
 
     elif text == 'حساب درجتك بلبلوك':
-        # Ask first question
         await update.message.reply_text(
             "شكد المادة عليها بلبلوك؟",
             reply_markup=ReplyKeyboardMarkup(
@@ -144,7 +140,6 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     else:
         await update.message.reply_text("خيار غير معروف!")
-        # Resend main menu
         await show_main_menu(update, context)
         return CHOOSING_OPTION
 
@@ -163,7 +158,6 @@ async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except ValueError:
         await update.message.reply_text("الرجاء إدخال رقم صالح.")
 
-    # After that, show the main menu
     await show_main_menu(update, context)
     return CHOOSING_OPTION
 
@@ -182,16 +176,11 @@ async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     except ValueError:
         await update.message.reply_text("الرجاء إدخال رقم صالح.")
 
-    # Return to main menu
     await show_main_menu(update, context)
     return CHOOSING_OPTION
 
-# ====== New Blok calculation handlers ======
+# بلبلوك flow
 async def blok_materia(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    1. Ask: "شكد المادة عليها بلبلوك؟"
-       Store the result, ask next question: "شكد الدرجة الكلية لهذي المادة؟"
-    """
     text = (update.message.text or "").strip()
 
     if text == 'العودة للقائمة الرئيسية':
@@ -214,10 +203,6 @@ async def blok_materia(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         return BLOK_MATERIA
 
 async def blok_total(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    2. Ask: "شكد الدرجة الكلية لهذي المادة؟"
-       Store the result, ask next question: "شكد خذيت؟"
-    """
     text = (update.message.text or "").strip()
 
     if text == 'العودة للقائمة الرئيسية':
@@ -240,11 +225,6 @@ async def blok_total(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return BLOK_TOTAL
 
 async def blok_taken(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    3. Ask: "شكد خذيت؟"
-       Calculate: (blok_materia * blok_taken) / blok_total
-       Return the result and go back to the main menu.
-    """
     text = (update.message.text or "").strip()
 
     if text == 'العودة للقائمة الرئيسية':
@@ -257,18 +237,12 @@ async def blok_taken(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         blok_total_value = context.user_data.get('blok_total', 1)  # Avoid zero-division
 
         result = (blok_materia_value * blok_taken_value) / blok_total_value
-
-        await update.message.reply_text(
-            f"درجتك بلبلوك هي: {result}\n"
-            f"({blok_materia_value} × {blok_taken_value}) ÷ {blok_total_value}"
-        )
+        await update.message.reply_text(f"درجتك بلبلوك هي: {result}")
     except ValueError:
         await update.message.reply_text("الرجاء إدخال رقم صالح.")
 
-    # Regardless, show main menu again
     await show_main_menu(update, context)
     return CHOOSING_OPTION
-# ==========================================
 
 # Handler to send a message to the bot owner
 async def send_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -288,7 +262,6 @@ async def send_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     else:
         await update.message.reply_text("لم يتم العثور على نص للرسالة.")
 
-    # Return to main menu
     await show_main_menu(update, context)
     return CHOOSING_OPTION
 
@@ -305,7 +278,6 @@ async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
     return USER_ID_WAITING_FOR_MESSAGE
 
-# Handler for the message in /user_id flow
 async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = (update.message.text or "").strip()
     user = update.effective_user
@@ -320,7 +292,6 @@ async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             await update.message.reply_text("حصل خطأ أثناء إرسال الرسالة.")
     else:
         await update.message.reply_text("لا يوجد نص في الرسالة!")
-    # End the user_id conversation
     return ConversationHandler.END
 
 # Mute a user
@@ -396,10 +367,6 @@ async def user_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 # Default handler for out-of-context messages
 async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    Catches messages that don't match any command/conversation state.
-    If the user is muted, we inform them. Otherwise, we direct them to use /start or the menu.
-    """
     user_id = update.effective_user.id
     if user_id in muted_users:
         await update.message.reply_text("⚠️ أنت مكتوم.")
@@ -442,7 +409,7 @@ def main():
                 MessageHandler(filters.TEXT & ~filters.COMMAND, send_message_handler),
             ],
 
-            # Blok calculation states
+            # Blok calculation
             BLOK_MATERIA: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, blok_materia),
             ],
@@ -454,7 +421,7 @@ def main():
             ],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        allow_reentry=True  # Allow re-entering if needed
+        allow_reentry=True
     )
 
     # /user_id conversation
@@ -469,7 +436,7 @@ def main():
         allow_reentry=False
     )
 
-    # Register the handlers
+    # Register handlers
     application.add_handler(conv_handler)
     application.add_handler(user_id_conv_handler)
     application.add_handler(CommandHandler('muteid', muteid_command))
