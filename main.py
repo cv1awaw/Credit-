@@ -1,4 +1,3 @@
-# main.py
 import logging
 import os
 import json
@@ -15,7 +14,7 @@ from telegram.ext import (
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.DEBUG  # Set to DEBUG for more verbose output
 )
 logger = logging.getLogger(__name__)
 
@@ -356,7 +355,8 @@ def main():
         states={
             CHOOSING_OPTION: [
                 MessageHandler(
-                    filters.Regex('^(حساب غياب النظري|حساب غياب العملي|ارسل رسالة لصاحب البوت)$'), choice_handler
+                    filters.Regex('^(حساب غياب النظري|حساب غياب العملي|ارسل رسالة لصاحب البوت)$'), 
+                    choice_handler
                 )
             ],
             GET_THEORETICAL_CREDIT: [
