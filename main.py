@@ -11,6 +11,7 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler,
 )
+from telegram.ext.filters import create  # For the dynamic filter
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -85,14 +86,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         known_users.add(user_id)
         save_users(known_users)
 
-    # Check mute (redundant if using top-priority check, but safe):
+    # Check mute (still helpful in case a user hits /start while already muted)
     if user_id in muted_users:
         await update.message.reply_text("⚠️ لقد تم كتمك من استخدام هذا البوت.")
         return ConversationHandler.END
 
     logger.info(f"User {user.username or user_id} used /start")
 
-    # Personalized vs default
+    # Personalized vs default greeting
     if user_id == SPECIAL_USER_ID:
         welcome = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
     else:
@@ -102,7 +103,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         )
 
     await update.message.reply_text(welcome)
-    await asyncio.sleep(0.3)
+    await asyncio.sleep(0.3)  # optional small delay
     await show_main_menu(update, context)
 
     return CHOOSING_OPTION
@@ -416,17 +417,26 @@ async def mutelist_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     else:
         await update.message.reply_text("No muted users.")
 
-# Highest-priority handler to block muted users
+# ========== HIGHEST-PRIORITY HANDLER FOR MUTED USERS (Dynamic Filter) ==========
+def user_is_muted(update: Update) -> bool:
+    """
+    Returns True if the effective_user is muted.
+    Because this function is called on each update,
+    it will catch newly muted users immediately.
+    """
+    user = update.effective_user
+    if not user:
+        return False  # e.g., if it's a callback query with no user
+    return user.id in muted_users
+
 async def handle_muted(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    This handler catches any message from a muted user and stops further handling.
-    It also notifies the authorized user about the attempt.
+    Notifies the authorized user that a muted user tried to use the bot
+    and replies to the muted user to indicate they are muted.
     """
     user = update.effective_user
     user_id = user.id
     username = user.username or f"ID {user_id}"
-    
-    # Try to get full name
     first_name = user.first_name or ""
     last_name = user.last_name or ""
     full_name = (first_name + " " + last_name).strip()
@@ -438,19 +448,17 @@ async def handle_muted(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"• Username: @{username}\n"
         f"• Full Name: {full_name if full_name else 'Not provided'}"
     )
-    
-    # Notify the authorized user (6177929931)
+
+    # Notify the authorized user
     try:
-        await context.bot.send_message(
-            chat_id=AUTHORIZED_USER_ID,
-            text=notification_message
-        )
+        await context.bot.send_message(chat_id=AUTHORIZED_USER_ID, text=notification_message)
     except Exception as e:
         logger.error(f"Failed to notify admin of muted user attempt: {e}")
 
     # Respond to the muted user
     await update.message.reply_text("⚠️ أنت مكتوم ولا يمكنك استخدام البوت.")
-    # Not returning a state => this update won't be passed on to other handlers.
+    # Not returning anything => no further handlers are called for this update.
+# ==============================================================================
 
 # Fallback & default
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -458,9 +466,9 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
-    if user_id in muted_users:
-        # In case the update gets here, still remind user they're muted.
+    user_id = update.effective_user.id if update.effective_user else None
+    if user_id and user_id in muted_users:
+        # If it ever got here, they're muted, remind them
         await update.message.reply_text("⚠️ أنت مكتوم.")
         return
 
@@ -489,13 +497,10 @@ def main():
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # ================== MUTE CHECK HANDLER (Highest Priority) ==================
-    if muted_users:
-        # Filter messages from any user in muted_users
-        mute_filter = filters.User(user_id=list(muted_users))
-        # group=0 => highest priority; if user is muted, no other handlers are checked.
-        app.add_handler(MessageHandler(mute_filter, handle_muted), group=0)
-    # =========================================================================
+    # 1) Create a dynamic filter that checks 'muted_users' at runtime:
+    mute_filter = create(user_is_muted)
+    # 2) Add a highest-priority handler that intercepts messages from muted users:
+    app.add_handler(MessageHandler(mute_filter, handle_muted), group=0)
 
     # Main conversation
     conv_handler = ConversationHandler(
@@ -527,7 +532,7 @@ def main():
         allow_reentry=False
     )
 
-    # Additional conversation for /user_id
+    # /user_id conversation
     user_id_conv = ConversationHandler(
         entry_points=[CommandHandler('user_id', user_id_command)],
         states={
