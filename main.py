@@ -14,6 +14,7 @@ from telegram.ext import (
 )
 from telegram.ext.filters import MessageFilter
 
+# Logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -36,25 +37,24 @@ AUTHORIZED_USER_ID = 6177929931
 # JSON
 MUTED_USERS_FILE = 'muted_users.json'
 USERS_FILE = 'users.json'
-WELCOME_MSGS_FILE = 'welcome_msgs.json'  # store custom welcomes
+WELCOME_MSGS_FILE = 'welcome_msgs.json'  # Store custom welcomes here
 
 MAIN_MENU_KEYBOARD = [
     ['حساب غياب النظري', 'حساب غياب العملي'],
     ['ارسل رسالة لصاحب البوت', 'حساب درجتك بلبلوك']
 ]
 
-# =============== Functions to load/save custom welcome messages ===============
 def load_override_welcomes():
     """
     Load dictionary { user_id_str: custom_message } from JSON.
-    We'll convert user_id_str to int at runtime.
+    Convert user_id_str to int at runtime.
     """
     if os.path.exists(WELCOME_MSGS_FILE):
         with open(WELCOME_MSGS_FILE, 'r', encoding='utf-8') as f:
             try:
                 data = json.load(f)
-                # data is { "123456": "custom welcome..." }
-                # we convert to { 123456: "custom welcome..." }
+                # Example: { "123456": "custom welcome message" }
+                # Convert to { 123456: "custom welcome message" }
                 return {int(k): v for k, v in data.items()}
             except json.JSONDecodeError:
                 return {}
@@ -62,13 +62,13 @@ def load_override_welcomes():
 
 def save_override_welcomes(mapping):
     """
-    Save dictionary { user_id: custom_message } to JSON as { "user_id": "msg" }
+    Save dictionary { int_user_id: custom_message } to JSON,
+    writing them as { "str_user_id": "custom_message" }.
     """
     to_save = {str(k): v for k, v in mapping.items()}
     with open(WELCOME_MSGS_FILE, 'w', encoding='utf-8') as f:
         json.dump(to_save, f, ensure_ascii=False)
 
-# =============== Load data ===============
 def load_muted_users():
     if os.path.exists(MUTED_USERS_FILE):
         with open(MUTED_USERS_FILE, 'r') as f:
@@ -95,9 +95,10 @@ def save_users(users):
     with open(USERS_FILE, 'w') as f:
         json.dump(list(users), f)
 
+# Global sets and dicts
 muted_users = load_muted_users()
 known_users = load_users()
-override_welcome_messages = load_override_welcomes()  # { int_user_id: "message" }
+override_welcome_messages = load_override_welcomes()
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -110,6 +111,9 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    /start - each time a user sends this, they get their custom or default welcome.
+    """
     user = update.effective_user
     user_id = user.id
 
@@ -125,22 +129,24 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     logger.info(f"User {user.username or user_id} used /start")
 
-    # 1) Check if there's a custom welcome override
+    # 1) If there's a custom welcome for this user, use that
     if user_id in override_welcome_messages:
-        welcome = override_welcome_messages[user_id]
-    # 2) Otherwise, check if user is the SPECIAL_USER_ID
+        welcome_text = override_welcome_messages[user_id]
+    # 2) Otherwise, check if user is SPECIAL_USER_ID
     elif user_id == SPECIAL_USER_ID:
-        welcome = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
+        welcome_text = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
     else:
-        welcome = (
+        welcome_text = (
             "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^\n\n"
             "اهلا وسهلا!"
         )
 
-    await update.message.reply_text(welcome)
+    # Send the welcome text
+    await update.message.reply_text(welcome_text)
     await asyncio.sleep(0.3)
-    await show_main_menu(update, context)
 
+    # Show main menu
+    await show_main_menu(update, context)
     return CHOOSING_OPTION
 
 async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -148,8 +154,8 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     if text == 'حساب غياب النظري':
         await update.message.reply_text(
-            "اكتب رقم الكردت لمادة النظري (مثال: 3.0)."
-            "\n\nأو اختر 'العودة للقائمة الرئيسية' في الأسفل:",
+            "اكتب رقم الكردت لمادة النظري (مثال: 3.0).\n\n"
+            "أو اختر 'العودة للقائمة الرئيسية' في الأسفل:",
             reply_markup=ReplyKeyboardMarkup(
                 [['العودة للقائمة الرئيسية']],
                 one_time_keyboard=True,
@@ -160,8 +166,8 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     elif text == 'حساب غياب العملي':
         await update.message.reply_text(
-            "اكتب رقم الكردت لمادة العملي (مثال: 1.5)."
-            "\n\nأو اختر 'العودة للقائمة الرئيسية' في الأسفل:",
+            "اكتب رقم الكردت لمادة العملي (مثال: 1.5).\n\n"
+            "أو اختر 'العودة للقائمة الرئيسية' في الأسفل:",
             reply_markup=ReplyKeyboardMarkup(
                 [['العودة للقائمة الرئيسية']],
                 one_time_keyboard=True,
@@ -198,8 +204,7 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return CHOOSING_OPTION
 
 async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = (update.message.text or "").strip()
-
+    text = update.message.text.strip()
     if text == 'العودة للقائمة الرئيسية':
         await show_main_menu(update, context)
         return CHOOSING_OPTION
@@ -210,7 +215,8 @@ async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text(f"غيابك للنظري هو: {result}")
     except ValueError:
         await update.message.reply_text(
-            "الرجاء إدخال رقم فقط.\nمثال: 3.0 أو 2.5\nأو اختر العودة للقائمة الرئيسية."
+            "الرجاء إدخال رقم فقط.\nمثال: 3.0 أو 2.5\n"
+            "أو اختر العودة للقائمة الرئيسية."
         )
         return GET_THEORETICAL_CREDIT
 
@@ -218,8 +224,7 @@ async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return CHOOSING_OPTION
 
 async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = (update.message.text or "").strip()
-
+    text = update.message.text.strip()
     if text == 'العودة للقائمة الرئيسية':
         await show_main_menu(update, context)
         return CHOOSING_OPTION
@@ -230,7 +235,8 @@ async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.message.reply_text(f"غيابك للعملي هو: {result}")
     except ValueError:
         await update.message.reply_text(
-            "الرجاء إدخال رقم فقط.\nمثال: 1 أو 1.5\nأو اختر العودة للقائمة الرئيسية."
+            "الرجاء إدخال رقم فقط.\nمثال: 1 أو 1.5\n"
+            "أو اختر العودة للقائمة الرئيسية."
         )
         return GET_PRACTICAL_CREDIT
 
@@ -239,7 +245,7 @@ async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 # بلبلوك
 async def blok_materia(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = (update.message.text or "").strip()
+    text = update.message.text.strip()
     if text == 'العودة للقائمة الرئيسية':
         await show_main_menu(update, context)
         return CHOOSING_OPTION
@@ -260,7 +266,7 @@ async def blok_materia(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         return BLOK_MATERIA
 
 async def blok_total(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = (update.message.text or "").strip()
+    text = update.message.text.strip()
     if text == 'العودة للقائمة الرئيسية':
         await show_main_menu(update, context)
         return CHOOSING_OPTION
@@ -281,7 +287,7 @@ async def blok_total(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return BLOK_TOTAL
 
 async def blok_taken(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = (update.message.text or "").strip()
+    text = update.message.text.strip()
     if text == 'العودة للقائمة الرئيسية':
         await show_main_menu(update, context)
         return CHOOSING_OPTION
@@ -301,7 +307,7 @@ async def blok_taken(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 # ارسل رسالة لصاحب البوت
 async def send_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = (update.message.text or "").strip()
+    text = update.message.text.strip()
     if text == 'العودة للقائمة الرئيسية':
         await show_main_menu(update, context)
         return CHOOSING_OPTION
@@ -337,7 +343,7 @@ async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     return USER_ID_WAITING_FOR_MESSAGE
 
 async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = (update.message.text or "").strip()
+    text = update.message.text.strip()
     user = update.effective_user
 
     if text:
@@ -352,13 +358,52 @@ async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text("لا يوجد نص في الرسالة!")
     return ConversationHandler.END
 
-# /hey <userid> -> set custom welcome
-HEY_WAITING_FOR_MESSAGE = 999
+# /user_m <userid> -> send a custom message to any user
+USER_M_WAITING_FOR_MESSAGE = 30
 
+async def user_m_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.effective_user.id != AUTHORIZED_USER_ID:
+        await update.message.reply_text("You are not authorized to use this command.")
+        return ConversationHandler.END
+
+    if len(context.args) != 1:
+        await update.message.reply_text("Usage: /user_m <userid>")
+        return ConversationHandler.END
+
+    try:
+        target_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("Invalid user ID. Must be an integer.")
+        return ConversationHandler.END
+
+    context.user_data['target_user_id'] = target_id
+    await update.message.reply_text(
+        f"ستقوم بإرسال رسالة إلى {target_id}. اكتب الرسالة الآن:",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return USER_M_WAITING_FOR_MESSAGE
+
+async def user_m_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text.strip()
+    if not text:
+        await update.message.reply_text("لم يتم العثور على نص للرسالة!")
+        return ConversationHandler.END
+
+    target_id = context.user_data.get('target_user_id')
+    if not target_id:
+        await update.message.reply_text("لم أجد user_id! أعد العملية.")
+        return ConversationHandler.END
+
+    try:
+        await context.bot.send_message(chat_id=target_id, text=text)
+        await update.message.reply_text(f"تم إرسال رسالتك إلى {target_id} بنجاح!")
+    except Exception as e:
+        logger.error(f"Failed sending message to {target_id}: {e}")
+        await update.message.reply_text("حصل خطأ أثناء إرسال الرسالة.")
+    return ConversationHandler.END
+
+# /hey <userid> -> set a custom welcome message
 async def hey_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    /hey <userid>
-    """
     if update.effective_user.id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
         return ConversationHandler.END
@@ -381,9 +426,6 @@ async def hey_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return HEY_WAITING_FOR_MESSAGE
 
 async def hey_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    Handles the custom welcome text from the authorized user.
-    """
     new_msg = (update.message.text or "").strip()
     if not new_msg:
         await update.message.reply_text("لم يتم العثور على نص الرسالة! أعد المحاولة.")
@@ -403,12 +445,8 @@ async def hey_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
     return ConversationHandler.END
 
-# /hey_r <userid> -> remove custom welcome
+# /hey_r <userid> -> remove a custom welcome
 async def hey_remove_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    /hey_r <userid>
-    Removes the custom welcome message for that user.
-    """
     if update.effective_user.id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
         return
@@ -447,7 +485,6 @@ async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 async def broadcast_ask_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['broadcast_msg'] = update.message.text
-
     confirm_keyboard = [["نعم، إرسال", "إلغاء"]]
     await update.message.reply_text(
         f"هل أنت متأكد من إرسال هذه الرسالة؟\n\n«{update.message.text}»",
@@ -456,7 +493,7 @@ async def broadcast_ask_message(update: Update, context: ContextTypes.DEFAULT_TY
     return BROADCAST_CONFIRMATION
 
 async def broadcast_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = (update.message.text or "").strip()
+    text = update.message.text.strip()
     if text == "نعم، إرسال":
         broadcast_msg = context.user_data.get('broadcast_msg', "")
         if not broadcast_msg:
@@ -474,10 +511,9 @@ async def broadcast_confirmation(update: Update, context: ContextTypes.DEFAULT_T
         await update.message.reply_text(f"تم إرسال الرسالة إلى {sent_count} مستخدم/مستخدمين.")
     else:
         await update.message.reply_text("تم الإلغاء.")
-
     return ConversationHandler.END
 
-# Mute/Unmute/Mutelist commands
+# Mute/Unmute/Mutelist
 async def muteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized.")
@@ -533,11 +569,10 @@ async def mutelist_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     else:
         await update.message.reply_text("No muted users.")
 
-# =================== /help Command ======================
+# /help
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     if user_id == AUTHORIZED_USER_ID:
-        # Show all authorized commands
         admin_help_text = (
             "🚀 أوامر المشرف:\n\n"
             "/help - إظهار هذه القائمة.\n"
@@ -554,7 +589,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         await update.message.reply_text(admin_help_text)
     else:
-        # Basic help for normal users
         user_help_text = (
             "مرحباً! أنا بوت للمساعدة.\n"
             "الأوامر المتاحة:\n"
@@ -563,14 +597,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         await update.message.reply_text(user_help_text)
 
-
-# ========== HIGHEST-PRIORITY HANDLER FOR MUTED USERS (Custom Filter) ==========
-
+# Mute filter
 class MuteFilter(MessageFilter):
-    """
-    Custom message filter that returns True if the message is from a muted user.
-    This is evaluated at runtime for each update, catching newly muted users.
-    """
     def filter(self, message):
         if message.from_user is None:
             return False
@@ -580,14 +608,13 @@ async def handle_muted(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not user:
         return
-
     user_id = user.id
     username = user.username or f"ID {user_id}"
     first_name = user.first_name or ""
     last_name = user.last_name or ""
     full_name = (first_name + " " + last_name).strip()
 
-    # Notify the authorized user
+    # Notify admin
     notification_message = (
         "⚠️ Muted user tried to interact with the bot:\n\n"
         f"• ID: {user_id}\n"
@@ -599,10 +626,7 @@ async def handle_muted(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Failed to notify admin of muted user attempt: {e}")
 
-    # Respond to the muted user
     await update.message.reply_text("⚠️ أنت مكتوم ولا يمكنك استخدام البوت.")
-
-# ==============================================================================
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("تم إلغاء العملية.")
@@ -685,15 +709,12 @@ def main():
         allow_reentry=False
     )
 
-    # /new broadcast conversation
-    broadcast_conv = ConversationHandler(
-        entry_points=[CommandHandler('new', broadcast_start)],
+    # /user_m conversation
+    user_m_conv = ConversationHandler(
+        entry_points=[CommandHandler('user_m', user_m_command)],
         states={
-            BROADCAST_ASK_MESSAGE: [
-                MessageHandler(filters.ALL & ~filters.Regex('^/cancel$'), broadcast_ask_message)
-            ],
-            BROADCAST_CONFIRMATION: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_confirmation)
+            USER_M_WAITING_FOR_MESSAGE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, user_m_message_handler)
             ],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
@@ -712,20 +733,36 @@ def main():
         allow_reentry=False
     )
 
+    # /new broadcast conversation
+    broadcast_conv = ConversationHandler(
+        entry_points=[CommandHandler('new', broadcast_start)],
+        states={
+            BROADCAST_ASK_MESSAGE: [
+                MessageHandler(filters.ALL & ~filters.Regex('^/cancel$'), broadcast_ask_message)
+            ],
+            BROADCAST_CONFIRMATION: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_confirmation)
+            ],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
+        allow_reentry=False
+    )
+
     # Register conversation handlers
     app.add_handler(conv_handler)
     app.add_handler(user_id_conv)
-    app.add_handler(broadcast_conv)
+    app.add_handler(user_m_conv)
     app.add_handler(hey_conv)
+    app.add_handler(broadcast_conv)
 
     # Register commands
     app.add_handler(CommandHandler('hey_r', hey_remove_command))
     app.add_handler(CommandHandler('muteid', muteid_command))
     app.add_handler(CommandHandler('unmuteid', unmuteid_command))
     app.add_handler(CommandHandler('mutelist', mutelist_command))
-    app.add_handler(CommandHandler('help', help_command))  # <--- Our new /help command
+    app.add_handler(CommandHandler('help', help_command))
 
-    # Fallback for anything else
+    # Fallback
     app.add_handler(MessageHandler(filters.ALL, default_handler))
 
     # Error handler
