@@ -1,7 +1,7 @@
 import logging
 import os
 import json
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import Bot, Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -28,10 +28,10 @@ USER_ID_WAITING_FOR_MESSAGE = 10
 BROADCAST_ASK_MESSAGE, BROADCAST_CONFIRMATION = range(20, 22)
 
 # IDs
-SPECIAL_USER_ID = 77655677655
-AUTHORIZED_USER_ID = 6177929931
+SPECIAL_USER_ID = 77655677655   # Example
+AUTHORIZED_USER_ID = 6177929931 # The user who can mute/unmute and broadcast
 
-# Files
+# JSON files
 MUTED_USERS_FILE = 'muted_users.json'
 USERS_FILE = 'users.json'
 
@@ -41,7 +41,7 @@ MAIN_MENU_KEYBOARD = [
     ['ارسل رسالة لصاحب البوت', 'حساب درجتك بلبلوك']
 ]
 
-# ------------------ Load/Save Data ------------------ #
+# ---------- Load & Save Functions ----------
 def load_muted_users():
     if os.path.exists(MUTED_USERS_FILE):
         with open(MUTED_USERS_FILE, 'r') as f:
@@ -68,11 +68,13 @@ def save_users(users):
     with open(USERS_FILE, 'w') as f:
         json.dump(list(users), f)
 
+# Initialize sets
 muted_users = load_muted_users()
 known_users = load_users()
 
-# ------------------ Shared Helpers ------------------ #
+# ---------- Shared Helper ----------
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Displays the main menu keyboard."""
     await update.message.reply_text(
         "اختر من القائمة:",
         reply_markup=ReplyKeyboardMarkup(
@@ -82,12 +84,12 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
     )
 
-# ------------------ /start ------------------ #
+# ---------- /start Handler ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     user_id = user.id
 
-    # Save user so we can broadcast later
+    # Save user so we can broadcast to them later
     if user_id not in known_users:
         known_users.add(user_id)
         save_users(known_users)
@@ -99,7 +101,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     logger.info(f"User {user.username or user_id} started the bot.")
 
-    # Greet
+    # Personalized message for SPECIAL_USER_ID
     if user_id == SPECIAL_USER_ID:
         welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
     else:
@@ -112,7 +114,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await show_main_menu(update, context)
     return CHOOSING_OPTION
 
-# ------------------ Main Conversation Handlers ------------------ #
+# ---------- Choice Handler ----------
 async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = (update.message.text or "").strip()
 
@@ -165,6 +167,7 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await show_main_menu(update, context)
         return CHOOSING_OPTION
 
+# ---------- غياب نظري / عملي ----------
 async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = (update.message.text or "").strip()
 
@@ -199,7 +202,7 @@ async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await show_main_menu(update, context)
     return CHOOSING_OPTION
 
-# بلبلوك flow
+# ---------- بلبلوك Flow ----------
 async def blok_materia(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = (update.message.text or "").strip()
 
@@ -254,7 +257,7 @@ async def blok_taken(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     try:
         blok_taken_value = float(text)
         blok_materia_value = context.user_data.get('blok_materia', 0)
-        blok_total_value = context.user_data.get('blok_total', 1)
+        blok_total_value = context.user_data.get('blok_total', 1)  # Avoid zero-division
         result = (blok_materia_value * blok_taken_value) / blok_total_value
         await update.message.reply_text(f"درجتك بلبلوك هي: {result}")
     except ValueError:
@@ -263,7 +266,7 @@ async def blok_taken(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await show_main_menu(update, context)
     return CHOOSING_OPTION
 
-# Send a message to bot owner
+# ---------- ارسل رسالة لصاحب البوت ----------
 async def send_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = (update.message.text or "").strip()
 
@@ -289,7 +292,7 @@ async def send_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     await show_main_menu(update, context)
     return CHOOSING_OPTION
 
-# /user_id (only for AUTHORIZED_USER_ID)
+# ---------- /user_id Flow (Send message to SPECIAL_USER_ID) ----------
 async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if update.effective_user.id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
@@ -318,7 +321,7 @@ async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
     return ConversationHandler.END
 
-# ------------------ BROADCAST via /new ------------------ #
+# ---------- Broadcast Flow (/new) ----------
 async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     if user.id != AUTHORIZED_USER_ID:
@@ -326,21 +329,18 @@ async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return ConversationHandler.END
 
     await update.message.reply_text(
-        "ما هي الرسالة التي تريد إرسالها للجميع؟\n\n"
-        "(اكتب /cancel للإلغاء)",
+        "ما هي الرسالة التي تريد إرسالها للجميع؟\n\n(اكتب /cancel للإلغاء)",
         reply_markup=ReplyKeyboardRemove()
     )
     return BROADCAST_ASK_MESSAGE
 
 async def broadcast_ask_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    # We capture ANY input (including slashes) except exactly /cancel
-    text = update.message.text
-    context.user_data['broadcast_msg'] = text
+    # Capture any input except exactly /cancel
+    context.user_data['broadcast_msg'] = update.message.text
 
-    # Confirm
     confirm_keyboard = [["نعم، إرسال", "إلغاء"]]
     await update.message.reply_text(
-        f"هل أنت متأكد من إرسال هذه الرسالة؟\n\n«{text}»",
+        f"هل أنت متأكد من إرسال هذه الرسالة؟\n\n«{update.message.text}»",
         reply_markup=ReplyKeyboardMarkup(confirm_keyboard, resize_keyboard=True, one_time_keyboard=True)
     )
     return BROADCAST_CONFIRMATION
@@ -368,7 +368,7 @@ async def broadcast_confirmation(update: Update, context: ContextTypes.DEFAULT_T
 
     return ConversationHandler.END
 
-# ------------------ Mute/Unmute/Mutelist ------------------ #
+# ---------- Mute/Unmute/Mutelist ----------
 async def muteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized.")
@@ -424,7 +424,7 @@ async def mutelist_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     else:
         await update.message.reply_text("No muted users.")
 
-# ------------------ Fallbacks & Default ------------------ #
+# ---------- Fallback & Default Handlers ----------
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("تم إلغاء العملية.")
     return ConversationHandler.END
@@ -444,16 +444,25 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
     if isinstance(update, Update) and update.effective_message:
         await update.effective_message.reply_text("عذراً حصل خطأ. حاول مجدداً.")
 
-# ------------------ main() ------------------ #
+# ---------- Main ----------
 def main():
     BOT_TOKEN = os.environ.get("BOT_TOKEN")
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN is not set.")
         return
 
+    # 1) Create a Bot instance to delete any leftover webhook
+    bot = Bot(token=BOT_TOKEN)
+    try:
+        bot.delete_webhook(drop_pending_updates=True)
+        logger.info("Deleted any existing webhook to avoid 409 conflicts.")
+    except Exception as e:
+        logger.warning(f"No webhook to delete or error while deleting webhook: {e}")
+
+    # 2) Build the Application
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # Main conversation
+    # 3) Main conversation handler
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
@@ -483,7 +492,7 @@ def main():
         allow_reentry=False
     )
 
-    # /user_id conversation
+    # 4) /user_id conversation handler
     user_id_conv_handler = ConversationHandler(
         entry_points=[CommandHandler('user_id', user_id_command)],
         states={
@@ -495,16 +504,12 @@ def main():
         allow_reentry=False
     )
 
-    # Broadcast conversation
+    # 5) Broadcast conversation (/new)
     broadcast_conv_handler = ConversationHandler(
         entry_points=[CommandHandler('new', broadcast_start)],
         states={
-            # capture ANY input except exactly /cancel
             BROADCAST_ASK_MESSAGE: [
-                MessageHandler(
-                    filters.ALL & ~filters.Regex('^/cancel$'),
-                    broadcast_ask_message
-                )
+                MessageHandler(filters.ALL & ~filters.Regex('^/cancel$'), broadcast_ask_message)
             ],
             BROADCAST_CONFIRMATION: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_confirmation)
@@ -514,23 +519,24 @@ def main():
         allow_reentry=False
     )
 
-    # Register conversation handlers
+    # 6) Register the conversation handlers
     application.add_handler(conv_handler)
     application.add_handler(user_id_conv_handler)
     application.add_handler(broadcast_conv_handler)
 
-    # Register commands
+    # 7) Register other commands
     application.add_handler(CommandHandler('muteid', muteid_command))
     application.add_handler(CommandHandler('unmuteid', unmuteid_command))
     application.add_handler(CommandHandler('mutelist', mutelist_command))
 
-    # Catch unhandled
+    # 8) Default handler
     application.add_handler(MessageHandler(filters.ALL, default_handler))
 
-    # Errors
+    # 9) Error handler
     application.add_error_handler(error_handler)
 
-    # Run
+    # 10) Run the bot with polling
+    logger.info("Starting bot via polling...")
     application.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
