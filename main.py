@@ -12,7 +12,7 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler
 )
-from telegram.ext.filters import MessageFilter  # For the custom filter
+from telegram.ext.filters import MessageFilter
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -26,8 +26,8 @@ BLOK_MATERIA, BLOK_TOTAL, BLOK_TAKEN = range(5, 8)
 USER_ID_WAITING_FOR_MESSAGE = 10
 BROADCAST_ASK_MESSAGE, BROADCAST_CONFIRMATION = range(20, 22)
 
-# NEW STATE for /user_m command
-USER_M_WAITING_FOR_MESSAGE = 30
+# NEW STATE for /hey command
+HEY_WAITING_FOR_MESSAGE = 999
 
 # IDs
 SPECIAL_USER_ID = 77655677655
@@ -36,12 +36,39 @@ AUTHORIZED_USER_ID = 6177929931
 # JSON
 MUTED_USERS_FILE = 'muted_users.json'
 USERS_FILE = 'users.json'
+WELCOME_MSGS_FILE = 'welcome_msgs.json'  # store custom welcomes
 
 MAIN_MENU_KEYBOARD = [
     ['حساب غياب النظري', 'حساب غياب العملي'],
     ['ارسل رسالة لصاحب البوت', 'حساب درجتك بلبلوك']
 ]
 
+# =============== Functions to load/save custom welcome messages ===============
+def load_override_welcomes():
+    """
+    Load dictionary { user_id_str: custom_message } from JSON.
+    We'll convert user_id_str to int at runtime.
+    """
+    if os.path.exists(WELCOME_MSGS_FILE):
+        with open(WELCOME_MSGS_FILE, 'r', encoding='utf-8') as f:
+            try:
+                data = json.load(f)
+                # data is { "123456": "custom welcome..." }
+                # we convert to { 123456: "custom welcome..." }
+                return {int(k): v for k, v in data.items()}
+            except json.JSONDecodeError:
+                return {}
+    return {}
+
+def save_override_welcomes(mapping):
+    """
+    Save dictionary { user_id: custom_message } to JSON as { user_id_str: custom_message }
+    """
+    to_save = {str(k): v for k, v in mapping.items()}
+    with open(WELCOME_MSGS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(to_save, f, ensure_ascii=False)
+
+# =============== Load data ===============
 def load_muted_users():
     if os.path.exists(MUTED_USERS_FILE):
         with open(MUTED_USERS_FILE, 'r') as f:
@@ -68,9 +95,9 @@ def save_users(users):
     with open(USERS_FILE, 'w') as f:
         json.dump(list(users), f)
 
-# Load data
 muted_users = load_muted_users()
 known_users = load_users()
+override_welcome_messages = load_override_welcomes()  # { int_user_id: "message" }
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -91,13 +118,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         known_users.add(user_id)
         save_users(known_users)
 
+    # Check if muted
     if user_id in muted_users:
         await update.message.reply_text("⚠️ لقد تم كتمك من استخدام هذا البوت.")
         return ConversationHandler.END
 
     logger.info(f"User {user.username or user_id} used /start")
 
-    if user_id == SPECIAL_USER_ID:
+    # 1) Check if there's a custom welcome override
+    if user_id in override_welcome_messages:
+        welcome = override_welcome_messages[user_id]
+    # 2) Otherwise, check if user is the SPECIAL_USER_ID
+    elif user_id == SPECIAL_USER_ID:
         welcome = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
     else:
         welcome = (
@@ -320,19 +352,20 @@ async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text("لا يوجد نص في الرسالة!")
     return ConversationHandler.END
 
-# =============== NEW: /user_m <userid> command ===============
-# 1) We define the command to parse the target user ID
-async def user_m_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+# =============== NEW: /hey <userid> for custom welcome messages ===============
+async def hey_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
-    Usage: /user_m <userid>
-    Bot will ask for a message and then send it to that user.
+    /hey <userid>
+    - Only the authorized user can do this.
+    - We'll store the user ID in context.user_data and ask for the custom welcome message.
     """
     if update.effective_user.id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
         return ConversationHandler.END
 
     if len(context.args) != 1:
-        await update.message.reply_text("Usage: /user_m <userid>")
+        await update.message.reply_text("Usage: /hey <userid>")
         return ConversationHandler.END
 
     try:
@@ -341,38 +374,38 @@ async def user_m_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text("Invalid user ID. Must be an integer.")
         return ConversationHandler.END
 
-    # Store the target user ID in user_data so we can retrieve it later
-    context.user_data['target_user_id'] = target_id
-
-    # Prompt the authorized user for a message
+    context.user_data['hey_target_id'] = target_id
     await update.message.reply_text(
-        f"ستقوم بإرسال رسالة إلى {target_id}. اكتب الرسالة الآن:",
+        f"ستقوم بتغيير الترحيب للمستخدم {target_id}. اكتب الرسالة الآن:",
         reply_markup=ReplyKeyboardRemove()
     )
-    return USER_M_WAITING_FOR_MESSAGE
+    return HEY_WAITING_FOR_MESSAGE
 
-# 2) We define the handler that actually sends the message
-async def user_m_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = (update.message.text or "").strip()
-    if not text:
-        await update.message.reply_text("لم يتم العثور على نص للرسالة!")
+async def hey_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Handles the custom welcome text from the authorized user.
+    Saves it to override_welcome_messages, then writes to JSON.
+    """
+    new_msg = (update.message.text or "").strip()
+    if not new_msg:
+        await update.message.reply_text("لم يتم العثور على نص الرسالة! أعد المحاولة.")
         return ConversationHandler.END
 
-    # Retrieve target user ID
-    target_id = context.user_data.get('target_user_id')
+    target_id = context.user_data.get('hey_target_id')
     if not target_id:
         await update.message.reply_text("لم أجد user_id! أعد العملية.")
         return ConversationHandler.END
 
-    # Attempt to send message
-    try:
-        await context.bot.send_message(chat_id=target_id, text=text)
-        await update.message.reply_text(f"تم إرسال رسالتك إلى {target_id} بنجاح!")
-    except Exception as e:
-        logger.error(f"Failed sending message to {target_id}: {e}")
-        await update.message.reply_text("حصل خطأ أثناء إرسال الرسالة.")
+    # Save the new welcome to our dictionary
+    override_welcome_messages[target_id] = new_msg
+    save_override_welcomes(override_welcome_messages)
+
+    await update.message.reply_text(
+        f"تم تغيير رسالة الترحيب للمستخدم {target_id} بنجاح!\n"
+        f"الترحيب الجديد: {new_msg}"
+    )
     return ConversationHandler.END
-# =============================================================
+# ==============================================================================
 
 # Broadcast flow
 async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -483,7 +516,7 @@ class MuteFilter(MessageFilter):
     """
     def filter(self, message):
         if message.from_user is None:
-            return False  # e.g., channel post or no user
+            return False
         return message.from_user.id in muted_users
 
 async def handle_muted(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -493,7 +526,7 @@ async def handle_muted(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     user = update.effective_user
     if not user:
-        return  # Possibly a channel post, so do nothing.
+        return
 
     user_id = user.id
     username = user.username or f"ID {user_id}"
@@ -614,12 +647,12 @@ def main():
         allow_reentry=False
     )
 
-    # /user_m conversation
-    user_m_conv = ConversationHandler(
-        entry_points=[CommandHandler('user_m', user_m_command)],
+    # /hey conversation
+    hey_conv = ConversationHandler(
+        entry_points=[CommandHandler('hey', hey_command)],
         states={
-            USER_M_WAITING_FOR_MESSAGE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, user_m_message_handler)
+            HEY_WAITING_FOR_MESSAGE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, hey_message_handler)
             ],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
@@ -630,7 +663,7 @@ def main():
     app.add_handler(conv_handler)
     app.add_handler(user_id_conv)
     app.add_handler(broadcast_conv)
-    app.add_handler(user_m_conv)
+    app.add_handler(hey_conv)
 
     # Register commands
     app.add_handler(CommandHandler('muteid', muteid_command))
