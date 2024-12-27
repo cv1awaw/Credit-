@@ -72,7 +72,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
         logger.info(f"Sending personalized message to user ID {user_id}.")
     else:
-        # Updated default welcome message for other users
+        # Default welcome message for other users
         welcome_message = (
             "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^\n\n"
             "اذا بقى يشكل عندك البوت اضغط /start"
@@ -87,7 +87,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     )
     return CHOOSING_OPTION
 
-# Handler for choosing option
+# Handler for choosing an option from the main menu
 async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
 
@@ -157,7 +157,7 @@ async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.message.reply_text("الرجاء إرسال رقم صحيح أو العودة للقائمة الرئيسية.")
         return GET_PRACTICAL_CREDIT
 
-# Handler for /user_id command
+# /user_id command — only for AUTHORIZED_USER_ID
 async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     user_id = user.id
@@ -215,7 +215,7 @@ async def send_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
     return ConversationHandler.END
 
-# Handler for /muteid command
+# /muteid command — only for AUTHORIZED_USER_ID
 async def muteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     user_id = user.id
@@ -242,7 +242,7 @@ async def muteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text(f"User ID {target_id} has been muted.")
         logger.info(f"User ID {target_id} has been muted by {user_id}.")
 
-# Handler for /unmuteid command
+# /unmuteid command — only for AUTHORIZED_USER_ID
 async def unmuteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     user_id = user.id
@@ -269,7 +269,7 @@ async def unmuteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     else:
         await update.message.reply_text(f"User ID {target_id} is not muted.")
 
-# Handler for /mutelist command
+# /mutelist command — only for AUTHORIZED_USER_ID
 async def mutelist_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     user_id = user.id
@@ -300,41 +300,24 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     )
     return ConversationHandler.END
 
-# Default handler for any other messages
+# Default handler for unknown or out-of-context messages
 async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     user_id = user.id
 
     # Check if user is muted
     if user_id in muted_users:
-        # Optionally, notify the user they are muted
         await update.message.reply_text("⚠️ لقد تم كتمك من استخدام هذا البوت.")
         return
 
-    reply_keyboard = [
-        ['حساب غياب النظري', 'حساب غياب العملي'],
-        ['ارسل رسالة لصاحب البوت']
-    ]
-
-    if user_id == SPECIAL_USER_ID:
-        welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
-    else:
-        welcome_message = (
-            "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^\n\n"
-            "اذا بقى يشكل عندك البوت اضغط /start"
-        )
-
+    # Instead of re-sending the full welcome message, send a brief prompt:
     await update.message.reply_text(
-        welcome_message,
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, resize_keyboard=True
-        )
+        "عذراً، لم أفهم ذلك. الرجاء استخدام الأزرار أو اكتب /start لإعادة التشغيل."
     )
 
-# Error handler to catch all errors
+# Error handler to catch and log all errors
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error(msg="Exception while handling an update:", exc_info=context.error)
-    # Optionally, notify the user about the error
     if isinstance(update, Update) and update.effective_message:
         await update.effective_message.reply_text("An unexpected error occurred. Please try again later.")
 
@@ -385,7 +368,7 @@ def main():
         allow_reentry=True
     )
 
-    # Define a general MessageHandler to handle all other messages
+    # Handle any other messages that don't fit into the above handlers
     general_handler = MessageHandler(filters.ALL & ~filters.COMMAND, default_handler)
 
     # Add handlers to the application
