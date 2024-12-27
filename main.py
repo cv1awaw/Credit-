@@ -2,6 +2,7 @@ import logging
 import os
 import json
 import asyncio
+
 from telegram import Bot, Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     ApplicationBuilder,
@@ -9,9 +10,9 @@ from telegram.ext import (
     MessageHandler,
     filters,
     ContextTypes,
-    ConversationHandler,
+    ConversationHandler
 )
-from telegram.ext.filters import create  # For the dynamic filter
+from telegram.ext.filters import MessageFilter  # <-- For the custom filter
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -64,6 +65,7 @@ def save_users(users):
     with open(USERS_FILE, 'w') as f:
         json.dump(list(users), f)
 
+# Load data
 muted_users = load_muted_users()
 known_users = load_users()
 
@@ -86,14 +88,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         known_users.add(user_id)
         save_users(known_users)
 
-    # Check mute (still helpful in case a user hits /start while already muted)
     if user_id in muted_users:
         await update.message.reply_text("⚠️ لقد تم كتمك من استخدام هذا البوت.")
         return ConversationHandler.END
 
     logger.info(f"User {user.username or user_id} used /start")
 
-    # Personalized vs default greeting
     if user_id == SPECIAL_USER_ID:
         welcome = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
     else:
@@ -103,7 +103,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         )
 
     await update.message.reply_text(welcome)
-    await asyncio.sleep(0.3)  # optional small delay
+    await asyncio.sleep(0.3)
     await show_main_menu(update, context)
 
     return CHOOSING_OPTION
@@ -417,39 +417,40 @@ async def mutelist_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     else:
         await update.message.reply_text("No muted users.")
 
-# ========== HIGHEST-PRIORITY HANDLER FOR MUTED USERS (Dynamic Filter) ==========
-def user_is_muted(update: Update) -> bool:
+# ========== HIGHEST-PRIORITY HANDLER FOR MUTED USERS (Custom Filter) ==========
+
+class MuteFilter(MessageFilter):
     """
-    Returns True if the effective_user is muted.
-    Because this function is called on each update,
-    it will catch newly muted users immediately.
+    Custom message filter that returns True if the message is from a muted user.
+    This is evaluated at runtime for each update, catching newly muted users.
     """
-    user = update.effective_user
-    if not user:
-        return False  # e.g., if it's a callback query with no user
-    return user.id in muted_users
+    def filter(self, message):
+        if message.from_user is None:
+            return False  # e.g., channel post
+        return message.from_user.id in muted_users
 
 async def handle_muted(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Notifies the authorized user that a muted user tried to use the bot
-    and replies to the muted user to indicate they are muted.
+    Called if MuteFilter is True. Notifies AUTHORIZED_USER_ID about
+    the muted user's attempt, and tells the user they're muted.
     """
     user = update.effective_user
+    if not user:
+        return  # No user? Possibly a channel post. Just ignore.
+
     user_id = user.id
     username = user.username or f"ID {user_id}"
     first_name = user.first_name or ""
     last_name = user.last_name or ""
     full_name = (first_name + " " + last_name).strip()
 
-    # Build a notification message for the authorized user
+    # Notify the authorized user
     notification_message = (
         "⚠️ Muted user tried to interact with the bot:\n\n"
         f"• ID: {user_id}\n"
         f"• Username: @{username}\n"
         f"• Full Name: {full_name if full_name else 'Not provided'}"
     )
-
-    # Notify the authorized user
     try:
         await context.bot.send_message(chat_id=AUTHORIZED_USER_ID, text=notification_message)
     except Exception as e:
@@ -458,17 +459,16 @@ async def handle_muted(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Respond to the muted user
     await update.message.reply_text("⚠️ أنت مكتوم ولا يمكنك استخدام البوت.")
     # Not returning anything => no further handlers are called for this update.
+
 # ==============================================================================
 
-# Fallback & default
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("تم إلغاء العملية.")
     return ConversationHandler.END
 
 async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id if update.effective_user else None
-    if user_id and user_id in muted_users:
-        # If it ever got here, they're muted, remind them
+    if user_id and (user_id in muted_users):
         await update.message.reply_text("⚠️ أنت مكتوم.")
         return
 
@@ -497,9 +497,9 @@ def main():
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # 1) Create a dynamic filter that checks 'muted_users' at runtime:
-    mute_filter = create(user_is_muted)
-    # 2) Add a highest-priority handler that intercepts messages from muted users:
+    # 1) Create an instance of our custom MuteFilter
+    mute_filter = MuteFilter()
+    # 2) Add handler at group=0 so it runs first for muted users
     app.add_handler(MessageHandler(mute_filter, handle_muted), group=0)
 
     # Main conversation
