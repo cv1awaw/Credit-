@@ -11,89 +11,100 @@ from telegram.ext import (
     ConversationHandler,
 )
 
-# Enable logging
+# Set logging to INFO for less verbosity
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.DEBUG  # Set to DEBUG for more verbose output
+    level=logging.INFO  
 )
 logger = logging.getLogger(__name__)
 
-# Define states for ConversationHandler
+# Define states for the main conversation
 CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT, SEND_MESSAGE = range(4)
 
-# Define additional states for /user_id command
-USER_ID_WAITING_FOR_MESSAGE = 4
+# Define additional state for /user_id command
+USER_ID_WAITING_FOR_MESSAGE = 5
 
-# Special User IDs
-SPECIAL_USER_ID = 77655677655  # The special user
-AUTHORIZED_USER_ID = 6177929931  # The user who can mute/unmute
+# IDs
+SPECIAL_USER_ID = 77655677655    # Example special user
+AUTHORIZED_USER_ID = 6177929931  # Person who can mute/unmute
 
 # Path to the muted users file
 MUTED_USERS_FILE = 'muted_users.json'
 
-# Keyboard layout
-REPLY_KEYBOARD = [
+# Main menu keyboard
+MAIN_MENU_KEYBOARD = [
     ['حساب غياب النظري', 'حساب غياب العملي'],
     ['ارسل رسالة لصاحب البوت']
 ]
 
-# Utility functions to manage muted users
+# Utility functions for loading/saving muted users
 def load_muted_users():
     if os.path.exists(MUTED_USERS_FILE):
-        with open(MUTED_USERS_FILE, 'r') as file:
+        with open(MUTED_USERS_FILE, 'r') as f:
             try:
-                return set(json.load(file))
+                return set(json.load(f))
             except json.JSONDecodeError:
                 return set()
     return set()
 
 def save_muted_users(muted_users):
-    with open(MUTED_USERS_FILE, 'w') as file:
-        json.dump(list(muted_users), file)
+    with open(MUTED_USERS_FILE, 'w') as f:
+        json.dump(list(muted_users), f)
 
-# Initialize muted users set
+# Initialize the set of muted users
 muted_users = load_muted_users()
 
-# Start command handler
+# Helper function to show the main menu (without resetting the conversation)
+async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Sends the main menu keyboard."""
+    await update.message.reply_text(
+        "اختر من القائمة:",
+        reply_markup=ReplyKeyboardMarkup(
+            MAIN_MENU_KEYBOARD,
+            one_time_keyboard=True,
+            resize_keyboard=True
+        )
+    )
+
+# /start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     user_id = user.id
 
-    # Check if user is muted
+    # Check for mute
     if user_id in muted_users:
         await update.message.reply_text("⚠️ لقد تم كتمك من استخدام هذا البوت.")
         return ConversationHandler.END
 
-    # Log the user ID for debugging
-    logger.info(f"User {user.username or 'No Username'} with ID {user_id} started the bot.")
+    logger.info(f"User {user.username or user_id} started the bot.")
 
+    # Personalized vs default message
     if user_id == SPECIAL_USER_ID:
-        # Personalized welcome message for the special user
         welcome_message = "اهلا زهراء في البوت مالتي 🌹\nاتمنى تستفادين منه ^^"
     else:
-        # Default welcome message for other users (line removed)
         welcome_message = (
             "السلام عليكم \nالبوت تم تطويرة بواسطة @iwanna2die حتى يساعد الطلاب ^^\n\n"
+            "اهلا وسهلا!"
         )
 
-    await update.message.reply_text(
-        welcome_message,
-        reply_markup=ReplyKeyboardMarkup(
-            REPLY_KEYBOARD, one_time_keyboard=True, resize_keyboard=True
-        )
-    )
+    await update.message.reply_text(welcome_message)
+    # Then show the main menu
+    await show_main_menu(update, context)
+
+    # Move to the CHOOSING_OPTION state
     return CHOOSING_OPTION
 
-# Menu choice handler
+# Choice handler
 async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    # Strip whitespace to avoid mismatch if user typed trailing space
-    text = update.message.text.strip()
+    text = (update.message.text or "").strip()
 
     if text == 'حساب غياب النظري':
         await update.message.reply_text(
             "ارسل كردت مادة النظري",
             reply_markup=ReplyKeyboardMarkup(
-                [['العودة للقائمة الرئيسية']], resize_keyboard=True, one_time_keyboard=True
+                [['العودة للقائمة الرئيسية']], 
+                resize_keyboard=True,
+                one_time_keyboard=True
             )
         )
         return GET_THEORETICAL_CREDIT
@@ -102,7 +113,9 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text(
             "ارسل ركدت العملي",
             reply_markup=ReplyKeyboardMarkup(
-                [['العودة للقائمة الرئيسية']], resize_keyboard=True, one_time_keyboard=True
+                [['العودة للقائمة الرئيسية']], 
+                resize_keyboard=True,
+                one_time_keyboard=True
             )
         )
         return GET_PRACTICAL_CREDIT
@@ -115,111 +128,106 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return SEND_MESSAGE
 
     else:
-        await update.message.reply_text(
-            "اختيار غير معروف. الرجاء الاختيار من الأزرار.",
-            reply_markup=ReplyKeyboardMarkup(
-                REPLY_KEYBOARD, resize_keyboard=True
-            )
-        )
+        await update.message.reply_text("خيار غير معروف!")
+        # Resend main menu
+        await show_main_menu(update, context)
         return CHOOSING_OPTION
 
-# Handler for theoretical credit input
+# Handle theoretical credit
 async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = update.message.text.strip()
+    text = (update.message.text or "").strip()
 
     if text == 'العودة للقائمة الرئيسية':
-        return await start(update, context)
+        # Just show main menu again
+        await show_main_menu(update, context)
+        return CHOOSING_OPTION
 
     try:
         credit = float(text)
         result = credit * 8 * 0.23
-        await update.message.reply_text(f"{result}")
-        return await start(update, context)
+        await update.message.reply_text(f"غيابك للنظري هو: {result}")
     except ValueError:
-        await update.message.reply_text("الرجاء إرسال رقم صحيح أو العودة للقائمة الرئيسية.")
-        return GET_THEORETICAL_CREDIT
+        await update.message.reply_text("الرجاء إدخال رقم صالح.")
+    # After that, show the main menu
+    await show_main_menu(update, context)
+    return CHOOSING_OPTION
 
-# Handler for practical credit input
+# Handle practical credit
 async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = update.message.text.strip()
+    text = (update.message.text or "").strip()
 
     if text == 'العودة للقائمة الرئيسية':
-        return await start(update, context)
+        await show_main_menu(update, context)
+        return CHOOSING_OPTION
 
     try:
         credit = float(text)
         result = credit * 8 * 0.1176470588
-        await update.message.reply_text(f"{result}")
-        return await start(update, context)
+        await update.message.reply_text(f"غيابك للعملي هو: {result}")
     except ValueError:
-        await update.message.reply_text("الرجاء إرسال رقم صحيح أو العودة للقائمة الرئيسية.")
-        return GET_PRACTICAL_CREDIT
+        await update.message.reply_text("الرجاء إدخال رقم صالح.")
+    # Return to main menu
+    await show_main_menu(update, context)
+    return CHOOSING_OPTION
 
-# Handler for /user_id command
-async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+# Handler to send a message to the bot owner
+async def send_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = (update.message.text or "").strip()
     user = update.effective_user
     user_id = user.id
+    username = user.username or f"ID {user_id}"
 
-    logger.info(f"User {user.username or 'No Username'} with ID {user_id} invoked /user_id command.")
+    if text:
+        try:
+            formatted = f"رسالة من @{username} (ID: {user_id}):\n\n{text}"
+            await context.bot.send_message(chat_id=AUTHORIZED_USER_ID, text=formatted)
+            await update.message.reply_text("تم إرسال الرسالة بنجاح.")
+        except Exception as e:
+            logger.error(f"Failed to forward message: {e}")
+            await update.message.reply_text("حصل خطأ أثناء إرسال الرسالة. حاول مرة أخرى.")
+    else:
+        await update.message.reply_text("لم يتم العثور على نص للرسالة.")
 
-    if user_id != AUTHORIZED_USER_ID:
+    # Return to main menu
+    await show_main_menu(update, context)
+    return CHOOSING_OPTION
+
+# /user_id command (only for AUTHORIZED_USER_ID)
+async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    if user.id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
         return ConversationHandler.END
 
     await update.message.reply_text(
-        "Please send your message.",
+        "Send your message for the SPECIAL_USER_ID:",
         reply_markup=ReplyKeyboardRemove()
     )
     return USER_ID_WAITING_FOR_MESSAGE
 
-# Handler for processing the user's message in /user_id conversation
+# Handler for the message in /user_id flow
 async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = update.message.text
-    user_id = update.effective_user.id
-    username = update.effective_user.username or "No Username"
-
-    if text:
-        try:
-            formatted_message = f"Message from @{username} (ID: {user_id}):\n\n{text}"
-            await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=formatted_message)
-            await update.message.reply_text("رسالتك تم إرسالها بنجاح.")
-            logger.info(f"Message from user ID {user_id} sent to SPECIAL_USER_ID {SPECIAL_USER_ID}.")
-        except Exception as e:
-            logger.error(f"Failed to send message to SPECIAL_USER_ID {SPECIAL_USER_ID}: {e}")
-            await update.message.reply_text("لم يتم إرسال الرسالة. يرجى المحاولة لاحقًا.")
-    else:
-        await update.message.reply_text("لم يتم إرسال الرسالة. يرجى توفير نص صالح.")
-
-    return ConversationHandler.END
-
-# Handler for sending messages to the bot owner
-async def send_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = update.message.text
+    text = (update.message.text or "").strip()
     user = update.effective_user
-    user_id = user.id
-    username = user.username or "No Username"
 
     if text:
         try:
-            formatted_message = f"رسالة من @{username} (ID: {user_id}):\n\n{text}"
-            await context.bot.send_message(chat_id=AUTHORIZED_USER_ID, text=formatted_message)
-            await update.message.reply_text("تم إرسال رسالتك بنجاح.")
-            logger.info(f"Forwarded message from @{username} (ID: {user_id}) to AUTHORIZED_USER_ID {AUTHORIZED_USER_ID}.")
+            msg = f"Message from {user.username or user.id} (ID: {user.id}):\n{text}"
+            await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=msg)
+            await update.message.reply_text("تم إرسال رسالتك بنجاح!")
         except Exception as e:
-            logger.error(f"Failed to forward message to AUTHORIZED_USER_ID {AUTHORIZED_USER_ID}: {e}")
-            await update.message.reply_text("لم يتم إرسال الرسالة. يرجى المحاولة لاحقًا.")
+            logger.error(f"Failed sending message to SPECIAL_USER_ID: {e}")
+            await update.message.reply_text("حصل خطأ أثناء إرسال الرسالة.")
     else:
-        await update.message.reply_text("لم يتم إرسال الرسالة. يرجى توفير نص صالح.")
-
+        await update.message.reply_text("لا يوجد نص في الرسالة!")
+    # End the user_id conversation
     return ConversationHandler.END
 
-# Mute command
+# Mute a user
 async def muteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
-    user_id = user.id
-
-    if user_id != AUTHORIZED_USER_ID:
-        await update.message.reply_text("You are not authorized to use this command.")
+    if user.id != AUTHORIZED_USER_ID:
+        await update.message.reply_text("You are not authorized.")
         return
 
     if len(context.args) != 1:
@@ -229,24 +237,21 @@ async def muteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     try:
         target_id = int(context.args[0])
     except ValueError:
-        await update.message.reply_text("Please provide a valid user ID.")
+        await update.message.reply_text("Provide a valid user ID.")
         return
 
     if target_id in muted_users:
-        await update.message.reply_text(f"User ID {target_id} is already muted.")
+        await update.message.reply_text("User is already muted.")
     else:
         muted_users.add(target_id)
         save_muted_users(muted_users)
-        await update.message.reply_text(f"User ID {target_id} has been muted.")
-        logger.info(f"User ID {target_id} has been muted by {user_id}.")
+        await update.message.reply_text(f"User {target_id} has been muted.")
 
-# Unmute command
+# Unmute a user
 async def unmuteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
-    user_id = user.id
-
-    if user_id != AUTHORIZED_USER_ID:
-        await update.message.reply_text("You are not authorized to use this command.")
+    if user.id != AUTHORIZED_USER_ID:
+        await update.message.reply_text("You are not authorized.")
         return
 
     if len(context.args) != 1:
@@ -256,103 +261,88 @@ async def unmuteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     try:
         target_id = int(context.args[0])
     except ValueError:
-        await update.message.reply_text("Please provide a valid user ID.")
+        await update.message.reply_text("Provide a valid user ID.")
         return
 
     if target_id in muted_users:
         muted_users.remove(target_id)
         save_muted_users(muted_users)
-        await update.message.reply_text(f"User ID {target_id} has been unmuted.")
-        logger.info(f"User ID {target_id} has been unmuted by {user_id}.")
+        await update.message.reply_text(f"User {target_id} has been unmuted.")
     else:
-        await update.message.reply_text(f"User ID {target_id} is not muted.")
+        await update.message.reply_text("User is not muted.")
 
-# Mute list command
+# Show mute list
 async def mutelist_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
-    user_id = user.id
-
-    if user_id != AUTHORIZED_USER_ID:
-        await update.message.reply_text("You are not authorized to use this command.")
+    if user.id != AUTHORIZED_USER_ID:
+        await update.message.reply_text("You are not authorized.")
         return
 
     if muted_users:
-        muted_list = "\n".join(str(uid) for uid in muted_users)
-        await update.message.reply_text(f"Muted User IDs:\n{muted_list}")
+        text = "\n".join(str(u) for u in muted_users)
+        await update.message.reply_text("Muted users:\n" + text)
     else:
-        await update.message.reply_text("No users are currently muted.")
-
-# Fallback handler for /user_id conversation
-async def user_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text(
-        "تم إلغاء العملية. للبدء من جديد، ارسل /start",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    return ConversationHandler.END
+        await update.message.reply_text("No muted users.")
 
 # Fallback handler for main conversation
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text(
-        "تم إلغاء العملية. للبدء من جديد، ارسل /start",
-        reply_markup=ReplyKeyboardRemove()
-    )
+    await update.message.reply_text("تم إلغاء العملية.")
     return ConversationHandler.END
 
-# Default handler for unknown or out-of-context messages
-async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.effective_user
-    user_id = user.id
+# Fallback for /user_id conversation
+async def user_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await update.message.reply_text("ألغيت العملية.")
+    return ConversationHandler.END
 
-    # Check if user is muted
+# Default handler for out-of-context messages
+async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
     if user_id in muted_users:
-        await update.message.reply_text("⚠️ لقد تم كتمك من استخدام هذا البوت.")
+        await update.message.reply_text("⚠️ أنت مكتوم.")
         return
 
-    await update.message.reply_text(
-        "عذراً، لم أفهم ذلك. الرجاء استخدام الأزرار أو اكتب /start لإعادة التشغيل."
-    )
+    # Just gently tell them it's unrecognized. No forcing /start again.
+    await update.message.reply_text("لم أفهم رسالتك، استخدم الأزرار في الأسفل.")
 
-# Global error handler
+# Error handler
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    logger.error(msg="Exception while handling an update:", exc_info=context.error)
+    logger.error("Exception while handling an update:", exc_info=context.error)
     if isinstance(update, Update) and update.effective_message:
-        await update.effective_message.reply_text("An unexpected error occurred. Please try again later.")
+        await update.effective_message.reply_text("عذراً حصل خطأ. حاول مجدداً.")
 
 def main():
+    # Retrieve token
     BOT_TOKEN = os.environ.get("BOT_TOKEN")
     if not BOT_TOKEN:
-        logger.error("BOT_TOKEN environment variable not set.")
-        exit(1)
+        logger.error("BOT_TOKEN is not set.")
+        return
 
-    # Initialize the bot application
+    # Build application
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # The main ConversationHandler
+    # Main conversation
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
             CHOOSING_OPTION: [
-                MessageHandler(
-                    # Allow trailing spaces, etc.:
-                    filters.Regex('^(حساب غياب النظري|حساب غياب العملي|ارسل رسالة لصاحب البوت)\\s*$'),
-                    choice_handler
-                )
+                MessageHandler(filters.TEXT & ~filters.COMMAND, choice_handler),
             ],
             GET_THEORETICAL_CREDIT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, theoretical_credit)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, theoretical_credit),
             ],
             GET_PRACTICAL_CREDIT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, practical_credit)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, practical_credit),
             ],
             SEND_MESSAGE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, send_message_handler)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, send_message_handler),
             ],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        allow_reentry=True
+        # allow_reentry=False => we keep them in the flow forever
+        allow_reentry=False
     )
 
-    # ConversationHandler for /user_id
+    # /user_id conversation
     user_id_conv_handler = ConversationHandler(
         entry_points=[CommandHandler('user_id', user_id_command)],
         states={
@@ -361,24 +351,23 @@ def main():
             ],
         },
         fallbacks=[CommandHandler('cancel', user_cancel)],
-        allow_reentry=True
+        allow_reentry=False
     )
 
-    # Handle all unrecognized / out-of-conversation messages
-    general_handler = MessageHandler(filters.ALL & ~filters.COMMAND, default_handler)
-
-    # Register handlers
+    # Register the handlers
     application.add_handler(conv_handler)
     application.add_handler(user_id_conv_handler)
     application.add_handler(CommandHandler('muteid', muteid_command))
     application.add_handler(CommandHandler('unmuteid', unmuteid_command))
     application.add_handler(CommandHandler('mutelist', mutelist_command))
-    application.add_handler(general_handler)  # Last handler
 
-    # Add the error handler
+    # Catch any other messages not handled by the conv_handler
+    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, default_handler))
+
+    # Log errors
     application.add_error_handler(error_handler)
 
-    # Start the bot
+    # Run bot
     application.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
