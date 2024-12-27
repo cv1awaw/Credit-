@@ -20,11 +20,12 @@ logger = logging.getLogger(__name__)
 
 # Define states for the main conversation
 CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT, SEND_MESSAGE = range(4)
-USER_ID_WAITING_FOR_MESSAGE = 5
 
-# <-- ADDED: Define new states for بلبلوك calculation.
-BLOK_MATERIA, BLOK_TOTAL, BLOK_TAKEN = range(6, 9)
-# ----------------------------------------
+# We need more states for the بلبلوك flow
+BLOK_MATERIA, BLOK_TOTAL, BLOK_TAKEN = range(5, 8)
+
+# This extra state is for the /user_id command flow
+USER_ID_WAITING_FOR_MESSAGE = 10
 
 # IDs
 SPECIAL_USER_ID = 77655677655    # Example special user
@@ -36,7 +37,7 @@ MUTED_USERS_FILE = 'muted_users.json'
 # Main menu keyboard
 MAIN_MENU_KEYBOARD = [
     ['حساب غياب النظري', 'حساب غياب العملي'],
-    ['ارسل رسالة لصاحب البوت', 'حساب درجتك بلبلوك']  # <-- ADDED the new option
+    ['ارسل رسالة لصاحب البوت', 'حساب درجتك بلبلوك']
 ]
 
 # Utility functions for loading/saving muted users
@@ -129,8 +130,8 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return SEND_MESSAGE
 
-    # <-- ADDED: Option to calculate بلبلوك
     elif text == 'حساب درجتك بلبلوك':
+        # Ask first question
         await update.message.reply_text(
             "شكد المادة عليها بلبلوك؟",
             reply_markup=ReplyKeyboardMarkup(
@@ -140,7 +141,6 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
         )
         return BLOK_MATERIA
-    # ------------------------------------
 
     else:
         await update.message.reply_text("خيار غير معروف!")
@@ -153,7 +153,6 @@ async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE)
     text = (update.message.text or "").strip()
 
     if text == 'العودة للقائمة الرئيسية':
-        # Just show main menu again
         await show_main_menu(update, context)
         return CHOOSING_OPTION
 
@@ -163,6 +162,7 @@ async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text(f"غيابك للنظري هو: {result}")
     except ValueError:
         await update.message.reply_text("الرجاء إدخال رقم صالح.")
+
     # After that, show the main menu
     await show_main_menu(update, context)
     return CHOOSING_OPTION
@@ -181,16 +181,16 @@ async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.message.reply_text(f"غيابك للعملي هو: {result}")
     except ValueError:
         await update.message.reply_text("الرجاء إدخال رقم صالح.")
+
     # Return to main menu
     await show_main_menu(update, context)
     return CHOOSING_OPTION
 
-# <-- ADDED: Handlers for the new بلبلوك flow
+# ====== New Blok calculation handlers ======
 async def blok_materia(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
-    First step: Ask "شكد المادة عليها بلبلوك؟"
-    We'll store the user's input in context.user_data['blok_materia'].
-    Then ask the next question.
+    1. Ask: "شكد المادة عليها بلبلوك؟"
+       Store the result, ask next question: "شكد الدرجة الكلية لهذي المادة؟"
     """
     text = (update.message.text or "").strip()
 
@@ -215,9 +215,8 @@ async def blok_materia(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 async def blok_total(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
-    Second step: Ask "شكد الدرجة الكلية لهذي المادة؟"
-    We'll store the user's input in context.user_data['blok_total'].
-    Then ask the next question.
+    2. Ask: "شكد الدرجة الكلية لهذي المادة؟"
+       Store the result, ask next question: "شكد خذيت؟"
     """
     text = (update.message.text or "").strip()
 
@@ -242,9 +241,9 @@ async def blok_total(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def blok_taken(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
-    Third step: Ask "شكد خذيت؟"
-    We'll do the calculation: ( blok_materia * blok_taken ) / blok_total
-    Then show the result and return to main menu.
+    3. Ask: "شكد خذيت؟"
+       Calculate: (blok_materia * blok_taken) / blok_total
+       Return the result and go back to the main menu.
     """
     text = (update.message.text or "").strip()
 
@@ -254,25 +253,22 @@ async def blok_taken(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     try:
         blok_taken_value = float(text)
-
         blok_materia_value = context.user_data.get('blok_materia', 0)
-        blok_total_value = context.user_data.get('blok_total', 1)  # avoid zero-division
+        blok_total_value = context.user_data.get('blok_total', 1)  # Avoid zero-division
 
-        # Perform calculation
         result = (blok_materia_value * blok_taken_value) / blok_total_value
 
         await update.message.reply_text(
             f"درجتك بلبلوك هي: {result}\n"
-            f"(ناتج معادلة: ({blok_materia_value} × {blok_taken_value}) ÷ {blok_total_value})"
+            f"({blok_materia_value} × {blok_taken_value}) ÷ {blok_total_value}"
         )
-
     except ValueError:
         await update.message.reply_text("الرجاء إدخال رقم صالح.")
 
-    # Regardless of success/failure, show main menu again
+    # Regardless, show main menu again
     await show_main_menu(update, context)
     return CHOOSING_OPTION
-# ------------------------------------
+# ==========================================
 
 # Handler to send a message to the bot owner
 async def send_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -400,12 +396,15 @@ async def user_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 # Default handler for out-of-context messages
 async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Catches messages that don't match any command/conversation state.
+    If the user is muted, we inform them. Otherwise, we direct them to use /start or the menu.
+    """
     user_id = update.effective_user.id
     if user_id in muted_users:
         await update.message.reply_text("⚠️ أنت مكتوم.")
         return
 
-    # NOTE: Added mention of `/start` so user knows they can always type it
     await update.message.reply_text(
         "لم أفهم رسالتك، استخدم الأزرار في الأسفل أو اكتب /start للبدء من جديد."
     )
@@ -443,7 +442,7 @@ def main():
                 MessageHandler(filters.TEXT & ~filters.COMMAND, send_message_handler),
             ],
 
-            # <-- ADDED: States for the بلبلوك flow
+            # Blok calculation states
             BLOK_MATERIA: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, blok_materia),
             ],
@@ -453,10 +452,9 @@ def main():
             BLOK_TAKEN: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, blok_taken),
             ],
-            # ------------------------------------
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        allow_reentry=False
+        allow_reentry=True  # Allow re-entering if needed
     )
 
     # /user_id conversation
