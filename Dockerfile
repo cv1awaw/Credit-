@@ -1,30 +1,35 @@
+# Use an official Ubuntu base image
 FROM ubuntu:22.04
 
-RUN apt-get update && apt-get install -y \
-    g++ \
-    cmake \
-    libssl-dev \
-    libboost-system-dev \
-    libboost-program-options-dev \
-    libboost-iostreams-dev \
-    libcurl4-openssl-dev \
-    git \
-    zlib1g-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Avoid interactive prompts during build
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Build TgBot from source
-WORKDIR /tmp
-RUN git clone --recursive https://github.com/reo7sp/tgbot-cpp.git
-WORKDIR /tmp/tgbot-cpp
+# 1. Install necessary system packages
+#    - build-essential, cmake for building C++ code
+#    - libboost-all-dev for Boost::system, etc.
+#    - libssl-dev, libcurl4-openssl-dev for SSL/TLS
+#    - wget, git for fetching tgbot-cpp
+RUN apt-get update && \
+    apt-get install -y \
+        build-essential \
+        cmake \
+        libboost-all-dev \
+        libssl-dev \
+        libcurl4-openssl-dev \
+        wget git
+
+# 2. Download & build tgbot-cpp library
+RUN git clone https://github.com/reo7sp/tgbot-cpp.git /opt/tgbot-cpp
+WORKDIR /opt/tgbot-cpp
 RUN mkdir build && cd build && cmake .. && make -j4 && make install
 
-# Copy your bot source into /app
+# 3. Copy your bot's source code into the container
 WORKDIR /app
 COPY . /app
 
-# Build your bot
+# 4. Build your bot using CMake
 RUN mkdir build && cd build && cmake .. && make -j4
 
-# Set BOT_TOKEN at runtime (Railway can do this under "Variables")
-ENV BOT_TOKEN=""
+# 5. Define the default command to run your bot
+#    Railway will run this command after building
 CMD ["./build/MyTelegramBot"]
