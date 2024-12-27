@@ -301,8 +301,10 @@ async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text("⚠️ أنت مكتوم.")
         return
 
-    # Just gently tell them it's unrecognized. No forcing /start again.
-    await update.message.reply_text("لم أفهم رسالتك، استخدم الأزرار في الأسفل.")
+    # NOTE: Added mention of `/start` so user knows they can always type it
+    await update.message.reply_text(
+        "لم أفهم رسالتك، استخدم الأزرار في الأسفل أو اكتب /start للبدء من جديد."
+    )
 
 # Error handler
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -338,7 +340,6 @@ def main():
             ],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        # allow_reentry=False => we keep them in the flow forever
         allow_reentry=False
     )
 
