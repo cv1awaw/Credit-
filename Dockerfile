@@ -1,21 +1,33 @@
-# Dockerfile
-FROM python:3.11-slim
+# Use a base image with essential build tools
+FROM ubuntu:22.04
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
+# Install OS packages needed to build TgBot & your code
+RUN apt-get update && apt-get install -y \
+    g++ \
+    cmake \
+    libssl-dev \
+    libboost-system-dev \
+    libboost-program-options-dev \
+    libboost-iostreams-dev \
+    libcurl4-openssl-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+# Build TgBot from source
+WORKDIR /tmp
+RUN git clone --recursive https://github.com/reo7sp/tgbot-cpp.git
+WORKDIR /tmp/tgbot-cpp
+RUN mkdir build && cd build && cmake .. && make -j4 && make install
+
+# Copy your bot source into /app
 WORKDIR /app
+COPY . /app
 
-# Install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Build your bot with CMake
+RUN mkdir build && cd build && cmake .. && make -j4
 
-# Copy the bot script
-COPY main.py .
+# Set environment variable BOT_TOKEN at runtime (Railway does this, or you do it manually)
+ENV BOT_TOKEN=""
 
-# Define environment variables (replace with your actual values or set them in Railway)
-ENV BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN
-
-# Run the bot
-CMD ["python", "main.py"]
+# By default, run the compiled bot
+CMD ["./build/MyTelegramBot"]
