@@ -201,7 +201,7 @@ async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     try:
         credit = float(text)
-        result = credit * 8 * 0.23
+        result = credit * 8 * 0.2352941176
         await update.message.reply_text(f"غيابك للنظري هو: {result}")
     except ValueError:
         await update.message.reply_text(
