@@ -202,7 +202,8 @@ async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE)
     try:
         credit = float(text)
         result = credit * 8 * 0.2352941176
-        await update.message.reply_text(f"غيابك للنظري هو: {result}")
+        formatted_result = f"{result:.2f}"
+        await update.message.reply_text(f"غيابك للنظري هو: {formatted_result}")
     except ValueError:
         await update.message.reply_text(
             "الرجاء إدخال رقم فقط.\nمثال: 3.0 أو 2.5\n"
@@ -222,7 +223,8 @@ async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     try:
         credit = float(text)
         result = credit * 8 * 0.1176470588
-        await update.message.reply_text(f"غيابك للعملي هو: {result}")
+        formatted_result = f"{result:.2f}"
+        await update.message.reply_text(f"غيابك للعملي هو: {formatted_result}")
     except ValueError:
         await update.message.reply_text(
             "الرجاء إدخال رقم فقط.\nمثال: 1 أو 1.5\n"
@@ -287,7 +289,8 @@ async def blok_taken(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         materia_val = context.user_data.get('blok_materia', 0)
         total_val = context.user_data.get('blok_total', 1)
         result = (materia_val * taken) / total_val
-        await update.message.reply_text(f"درجتك بلبلوك هي: {result}")
+        formatted_result = f"{result:.2f}"
+        await update.message.reply_text(f"درجتك بلبلوك هي: {formatted_result}")
     except ValueError:
         await update.message.reply_text("الرجاء إدخال رقم صالح.")
         return BLOK_TAKEN
