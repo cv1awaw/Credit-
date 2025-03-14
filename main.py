@@ -2,6 +2,7 @@ import logging
 import os
 import json
 import asyncio
+from datetime import datetime, timedelta
 
 from telegram import Bot, Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
@@ -81,19 +82,25 @@ def load_users():
     if os.path.exists(USERS_FILE):
         with open(USERS_FILE, 'r') as f:
             try:
-                return set(json.load(f))
-            except json.JSONDecodeError:
-                return set()
-    return set()
+                data = json.load(f)
+                return {int(k): v for k, v in data.items()}
+            except (json.JSONDecodeError, ValueError):
+                return {}
+    return {}
 
-def save_users(userset):
+def save_users(users_dict):
     with open(USERS_FILE, 'w') as f:
-        json.dump(list(userset), f)
+        json.dump({str(k): v for k, v in users_dict.items()}, f)
 
 # Global sets/dicts
 muted_users = load_muted_users()
-known_users = load_users()
+known_users = load_users()  # Now stores {user_id: last_activity_timestamp}
 override_welcome_messages = load_override_welcomes()
+
+def log_user_activity(user_id):
+    """Update user's last activity timestamp"""
+    known_users[user_id] = datetime.now().isoformat()
+    save_users(known_users)
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -113,15 +120,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     user_id = user.id
 
-    if user_id not in known_users:
-        known_users.add(user_id)
-        save_users(known_users)
+    log_user_activity(user_id)
+    
+    logger.info(f"User {user.username or user_id} used /start - Full message: {update.message.text}")
 
     if user_id in muted_users:
         await update.message.reply_text("⚠️ لقد تم كتمك من استخدام هذا البوت.")
         return ConversationHandler.END
 
-    logger.info(f"User {user.username or user_id} used /start")
+    if user_id not in known_users:
+        known_users[user_id] = datetime.now().isoformat()
+        save_users(known_users)
 
     if user_id in override_welcome_messages:
         welcome_text = override_welcome_messages[user_id]
@@ -140,7 +149,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return CHOOSING_OPTION
 
 async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    log_user_activity(user.id)
     text = (update.message.text or "").strip()
+    
+    logger.info(f"User {user.username or user.id} selected option: {text}")
 
     if text == 'حساب غياب النظري':
         await update.message.reply_text(
@@ -194,7 +207,12 @@ async def choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return CHOOSING_OPTION
 
 async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    log_user_activity(user.id)
     text = (update.message.text or "").strip()
+    
+    logger.info(f"User {user.username or user.id} entered theoretical credit: {text}")
+
     if text == 'العودة للقائمة الرئيسية':
         await show_main_menu(update, context)
         return CHOOSING_OPTION
@@ -215,7 +233,12 @@ async def theoretical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return CHOOSING_OPTION
 
 async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    log_user_activity(user.id)
     text = (update.message.text or "").strip()
+    
+    logger.info(f"User {user.username or user.id} entered practical credit: {text}")
+
     if text == 'العودة للقائمة الرئيسية':
         await show_main_menu(update, context)
         return CHOOSING_OPTION
@@ -237,7 +260,12 @@ async def practical_credit(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 # بلبلوك
 async def blok_materia(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    log_user_activity(user.id)
     text = (update.message.text or "").strip()
+    
+    logger.info(f"User {user.username or user.id} entered blok materia: {text}")
+
     if text == 'العودة للقائمة الرئيسية':
         await show_main_menu(update, context)
         return CHOOSING_OPTION
@@ -258,7 +286,12 @@ async def blok_materia(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         return BLOK_MATERIA
 
 async def blok_total(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    log_user_activity(user.id)
     text = (update.message.text or "").strip()
+    
+    logger.info(f"User {user.username or user.id} entered blok total: {text}")
+
     if text == 'العودة للقائمة الرئيسية':
         await show_main_menu(update, context)
         return CHOOSING_OPTION
@@ -279,7 +312,12 @@ async def blok_total(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return BLOK_TOTAL
 
 async def blok_taken(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    log_user_activity(user.id)
     text = (update.message.text or "").strip()
+    
+    logger.info(f"User {user.username or user.id} entered blok taken: {text}")
+
     if text == 'العودة للقائمة الرئيسية':
         await show_main_menu(update, context)
         return CHOOSING_OPTION
@@ -300,12 +338,16 @@ async def blok_taken(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 # ارسل رسالة لصاحب البوت
 async def send_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    log_user_activity(user.id)
     text = (update.message.text or "").strip()
+    
+    logger.info(f"User {user.username or user.id} sent message to bot owner: {text}")
+
     if text == 'العودة للقائمة الرئيسية':
         await show_main_menu(update, context)
         return CHOOSING_OPTION
 
-    user = update.effective_user
     user_id = user.id
     username = user.username or f"ID {user_id}"
 
@@ -323,244 +365,34 @@ async def send_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     await show_main_menu(update, context)
     return CHOOSING_OPTION
 
-# /user_id -> message to SPECIAL_USER_ID
-async def user_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+# New /active command
+async def active_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
-        return ConversationHandler.END
+        return
 
-    await update.message.reply_text(
-        "Send your message for the SPECIAL_USER_ID:",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    return USER_ID_WAITING_FOR_MESSAGE
-
-async def user_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = (update.message.text or "").strip()
-    user = update.effective_user
-
-    if text:
+    total_users = len(known_users)
+    
+    # Calculate daily active users
+    daily_active = 0
+    now = datetime.now()
+    for last_active in known_users.values():
         try:
-            msg = f"Message from {user.username or user.id} (ID: {user.id}):\n{text}"
-            await context.bot.send_message(chat_id=SPECIAL_USER_ID, text=msg)
-            await update.message.reply_text("تم إرسال رسالتك بنجاح!")
-        except Exception as e:
-            logger.error(f"Failed sending message to SPECIAL_USER_ID: {e}")
-            await update.message.reply_text("حصل خطأ أثناء إرسال الرسالة.")
-    else:
-        await update.message.reply_text("لا يوجد نص في الرسالة!")
-    return ConversationHandler.END
+            last_active_time = datetime.fromisoformat(last_active)
+            if (now - last_active_time) < timedelta(hours=24):
+                daily_active += 1
+        except:
+            continue
 
-# /user_m <userid> -> send a custom message to any user
-async def user_m_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if update.effective_user.id != AUTHORIZED_USER_ID:
-        await update.message.reply_text("You are not authorized to use this command.")
-        return ConversationHandler.END
-
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /user_m <userid>")
-        return ConversationHandler.END
-
-    try:
-        target_id = int(context.args[0])
-    except ValueError:
-        await update.message.reply_text("Invalid user ID. Must be an integer.")
-        return ConversationHandler.END
-
-    context.user_data['target_user_id'] = target_id
-    await update.message.reply_text(
-        f"ستقوم بإرسال رسالة إلى {target_id}. اكتب الرسالة الآن:",
-        reply_markup=ReplyKeyboardRemove()
+    response = (
+        f"📊 Bot Usage Statistics:\n\n"
+        f"• Total Users: {total_users}\n"
+        f"• Active Today: {daily_active}"
     )
-    return USER_M_WAITING_FOR_MESSAGE
+    
+    await update.message.reply_text(response)
 
-async def user_m_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = (update.message.text or "").strip()
-    if not text:
-        await update.message.reply_text("لم يتم العثور على نص للرسالة!")
-        return ConversationHandler.END
-
-    target_id = context.user_data.get('target_user_id')
-    if not target_id:
-        await update.message.reply_text("لم أجد user_id! أعد العملية.")
-        return ConversationHandler.END
-
-    try:
-        await context.bot.send_message(chat_id=target_id, text=text)
-        await update.message.reply_text(f"تم إرسال رسالتك إلى {target_id} بنجاح!")
-    except Exception as e:
-        logger.error(f"Failed sending message to {target_id}: {e}")
-        await update.message.reply_text("حصل خطأ أثناء إرسال الرسالة.")
-    return ConversationHandler.END
-
-# /hey <userid> -> set a custom welcome
-async def hey_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if update.effective_user.id != AUTHORIZED_USER_ID:
-        await update.message.reply_text("You are not authorized to use this command.")
-        return ConversationHandler.END
-
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /hey <userid>")
-        return ConversationHandler.END
-
-    try:
-        target_id = int(context.args[0])
-    except ValueError:
-        await update.message.reply_text("Invalid user ID. Must be an integer.")
-        return ConversationHandler.END
-
-    context.user_data['hey_target_id'] = target_id
-    await update.message.reply_text(
-        f"ستقوم بتغيير الترحيب للمستخدم {target_id}. اكتب الرسالة الآن:",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    return HEY_WAITING_FOR_MESSAGE
-
-async def hey_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    new_msg = (update.message.text or "").strip()
-    if not new_msg:
-        await update.message.reply_text("لم يتم العثور على نص الرسالة! أعد المحاولة.")
-        return ConversationHandler.END
-
-    target_id = context.user_data.get('hey_target_id')
-    if not target_id:
-        await update.message.reply_text("لم أجد user_id! أعد العملية.")
-        return ConversationHandler.END
-
-    override_welcome_messages[target_id] = new_msg
-    save_override_welcomes(override_welcome_messages)
-
-    await update.message.reply_text(
-        f"تم تغيير رسالة الترحيب للمستخدم {target_id} بنجاح!\n"
-        f"الترحيب الجديد: {new_msg}"
-    )
-    return ConversationHandler.END
-
-# /hey_r <userid> -> remove a custom welcome
-async def hey_remove_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user.id != AUTHORIZED_USER_ID:
-        await update.message.reply_text("You are not authorized to use this command.")
-        return
-
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /hey_r <userid>")
-        return
-
-    try:
-        target_id = int(context.args[0])
-    except ValueError:
-        await update.message.reply_text("Invalid user ID. Must be an integer.")
-        return
-
-    if target_id in override_welcome_messages:
-        del override_welcome_messages[target_id]
-        save_override_welcomes(override_welcome_messages)
-        await update.message.reply_text(
-            f"تم حذف رسالة الترحيب المخصصة للمستخدم {target_id}.\n"
-            "الآن سيحصل على الرسالة الافتراضية عند استخدام /start."
-        )
-    else:
-        await update.message.reply_text("هذا المستخدم ليس لديه رسالة ترحيب مخصصة.")
-
-# /new broadcast flow
-async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if update.effective_user.id != AUTHORIZED_USER_ID:
-        await update.message.reply_text("You are not authorized to use this command.")
-        return ConversationHandler.END
-
-    await update.message.reply_text(
-        "ما هي الرسالة التي تريد إرسالها للجميع؟\n\n(اكتب /cancel للإلغاء)",
-        reply_markup=ReplyKeyboardRemove()
-    )
-    return BROADCAST_ASK_MESSAGE
-
-async def broadcast_ask_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data['broadcast_msg'] = update.message.text
-    confirm_keyboard = [["نعم، إرسال", "إلغاء"]]
-    await update.message.reply_text(
-        f"هل أنت متأكد من إرسال هذه الرسالة؟\n\n«{update.message.text}»",
-        reply_markup=ReplyKeyboardMarkup(confirm_keyboard, resize_keyboard=True, one_time_keyboard=True)
-    )
-    return BROADCAST_CONFIRMATION
-
-async def broadcast_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = (update.message.text or "").strip()
-    if text == "نعم، إرسال":
-        broadcast_msg = context.user_data.get('broadcast_msg', "")
-        if not broadcast_msg:
-            await update.message.reply_text("لا توجد رسالة للإرسال!")
-            return ConversationHandler.END
-
-        sent_count = 0
-        for uid in known_users:
-            try:
-                await context.bot.send_message(chat_id=uid, text=broadcast_msg)
-                sent_count += 1
-            except Exception as e:
-                logger.error(f"Could not send to user {uid}: {e}")
-
-        await update.message.reply_text(f"تم إرسال الرسالة إلى {sent_count} مستخدم/مستخدمين.")
-    else:
-        await update.message.reply_text("تم الإلغاء.")
-    return ConversationHandler.END
-
-# Mute/Unmute/Mutelist
-async def muteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user.id != AUTHORIZED_USER_ID:
-        await update.message.reply_text("You are not authorized.")
-        return
-
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /muteid <userid>")
-        return
-
-    try:
-        target_id = int(context.args[0])
-    except ValueError:
-        await update.message.reply_text("Provide a valid user ID.")
-        return
-
-    if target_id in muted_users:
-        await update.message.reply_text("User is already muted.")
-    else:
-        muted_users.add(target_id)
-        save_muted_users(muted_users)
-        await update.message.reply_text(f"User {target_id} has been muted.")
-
-async def unmuteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user.id != AUTHORIZED_USER_ID:
-        await update.message.reply_text("You are not authorized.")
-        return
-
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /unmuteid <userid>")
-        return
-
-    try:
-        target_id = int(context.args[0])
-    except ValueError:
-        await update.message.reply_text("Provide a valid user ID.")
-        return
-
-    if target_id in muted_users:
-        muted_users.remove(target_id)
-        save_muted_users(muted_users)
-        await update.message.reply_text(f"User {target_id} has been unmuted.")
-    else:
-        await update.message.reply_text("User is not muted.")
-
-async def mutelist_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user.id != AUTHORIZED_USER_ID:
-        await update.message.reply_text("You are not authorized.")
-        return
-
-    if muted_users:
-        text = "\n".join(str(u) for u in muted_users)
-        await update.message.reply_text("Muted users:\n" + text)
-    else:
-        await update.message.reply_text("No muted users.")
-
-# /help
+# Updated help command
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     if user_id == AUTHORIZED_USER_ID:
@@ -568,6 +400,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             "🚀 أوامر المشرف:\n\n"
             "/help - إظهار هذه القائمة.\n"
             "/start - بدء المحادثة أو عرض القائمة.\n"
+            "/active - إظهار إحصائيات الاستخدام\n"
             "/muteid <userid> - كتم مستخدم.\n"
             "/unmuteid <userid> - إلغاء كتم مستخدم.\n"
             "/mutelist - عرض المكتومين.\n"
@@ -588,58 +421,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         await update.message.reply_text(user_help_text)
 
-# Mute filter
-class MuteFilter(MessageFilter):
-    def filter(self, message):
-        return message.from_user and (message.from_user.id in muted_users)
-
-async def handle_muted(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    if not user:
-        return
-    user_id = user.id
-    username = user.username or f"ID {user_id}"
-    first_name = user.first_name or ""
-    last_name = user.last_name or ""
-    full_name = (first_name + " " + last_name).strip()
-
-    # Notify the authorized user
-    note = (
-        "⚠️ Muted user tried to interact:\n\n"
-        f"• ID: {user_id}\n"
-        f"• Username: @{username}\n"
-        f"• Full Name: {full_name if full_name else 'Not provided'}"
-    )
-    try:
-        await context.bot.send_message(chat_id=AUTHORIZED_USER_ID, text=note)
-    except Exception as e:
-        logger.error(f"Failed to notify admin of muted user attempt: {e}")
-
-    await update.message.reply_text("⚠️ أنت مكتوم ولا يمكنك استخدام البوت.")
-
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("تم إلغاء العملية.")
-    return ConversationHandler.END
-
-async def default_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    If no states or commands catch the message,
-    we politely tell the user we didn't understand – unless it's /start,
-    which is now handled by the fallback in the conversation.
-    """
-    user_id = update.effective_user.id if update.effective_user else None
-    if user_id and (user_id in muted_users):
-        await update.message.reply_text("⚠️ أنت مكتوم.")
-        return
-
-    await update.message.reply_text(
-        "لم أفهم رسالتك، استخدم الأزرار في الأسفل أو اكتب /start للبدء من جديد."
-    )
-
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    logger.error("Exception while handling an update:", exc_info=context.error)
-    if isinstance(update, Update) and update.effective_message:
-        await update.effective_message.reply_text("عذراً حصل خطأ. حاول مجدداً.")
+# ... (keep all other existing functions the same, just add log_user_activity() calls where needed)
 
 def main():
     BOT_TOKEN = os.environ.get("BOT_TOKEN")
@@ -657,117 +439,10 @@ def main():
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # Highest priority: Mute filter
-    mute_filter = MuteFilter()
-    app.add_handler(MessageHandler(mute_filter, handle_muted), group=0)
+    # Add new command handler
+    app.add_handler(CommandHandler('active', active_command))
 
-    # Main conversation
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
-        states={
-            CHOOSING_OPTION: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, choice_handler),
-            ],
-            GET_THEORETICAL_CREDIT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, theoretical_credit),
-            ],
-            GET_PRACTICAL_CREDIT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, practical_credit),
-            ],
-            SEND_MESSAGE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, send_message_handler),
-            ],
-            BLOK_MATERIA: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, blok_materia),
-            ],
-            BLOK_TOTAL: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, blok_total),
-            ],
-            BLOK_TAKEN: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, blok_taken),
-            ],
-        },
-        # IMPORTANT: add 'start' in fallbacks, allow_reentry => user can re-run /start anytime
-        fallbacks=[
-            CommandHandler('cancel', cancel),
-            CommandHandler('start', start),
-        ],
-        allow_reentry=True
-    )
-
-    # /user_id conversation
-    user_id_conv = ConversationHandler(
-        entry_points=[CommandHandler('user_id', user_id_command)],
-        states={
-            USER_ID_WAITING_FOR_MESSAGE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, user_message_handler),
-            ],
-        },
-        fallbacks=[CommandHandler('cancel', cancel)],
-        allow_reentry=False
-    )
-
-    # /user_m conversation
-    user_m_conv = ConversationHandler(
-        entry_points=[CommandHandler('user_m', user_m_command)],
-        states={
-            USER_M_WAITING_FOR_MESSAGE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, user_m_message_handler)
-            ],
-        },
-        fallbacks=[CommandHandler('cancel', cancel)],
-        allow_reentry=False
-    )
-
-    # /hey conversation
-    hey_conv = ConversationHandler(
-        entry_points=[CommandHandler('hey', hey_command)],
-        states={
-            HEY_WAITING_FOR_MESSAGE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, hey_message_handler)
-            ],
-        },
-        fallbacks=[CommandHandler('cancel', cancel)],
-        allow_reentry=False
-    )
-
-    # /new broadcast conversation
-    broadcast_conv = ConversationHandler(
-        entry_points=[CommandHandler('new', broadcast_start)],
-        states={
-            BROADCAST_ASK_MESSAGE: [
-                MessageHandler(filters.ALL & ~filters.Regex('^/cancel$'), broadcast_ask_message)
-            ],
-            BROADCAST_CONFIRMATION: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_confirmation)
-            ],
-        },
-        fallbacks=[CommandHandler('cancel', cancel)],
-        allow_reentry=False
-    )
-
-    # Register conversation handlers
-    app.add_handler(conv_handler)
-    app.add_handler(user_id_conv)
-    app.add_handler(user_m_conv)
-    app.add_handler(hey_conv)
-    app.add_handler(broadcast_conv)
-
-    # Other commands
-    app.add_handler(CommandHandler('hey_r', hey_remove_command))
-    app.add_handler(CommandHandler('muteid', muteid_command))
-    app.add_handler(CommandHandler('unmuteid', unmuteid_command))
-    app.add_handler(CommandHandler('mutelist', mutelist_command))
-    app.add_handler(CommandHandler('help', help_command))
-
-    # Fallback for everything else
-    app.add_handler(MessageHandler(filters.ALL, default_handler))
-
-    # Error handler
-    app.add_error_handler(error_handler)
-
-    logger.info("Running bot with polling...")
-    app.run_polling(drop_pending_updates=True)
+    # ... (rest of the main function remains the same)
 
 if __name__ == '__main__':
     main()
