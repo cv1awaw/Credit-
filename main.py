@@ -38,7 +38,7 @@ HEY_WAITING_FOR_MESSAGE = 999
 SPECIAL_USER_ID = 77655677655
 AUTHORIZED_USER_ID = 6177929931
 
-# JSON
+# JSON files
 MUTED_USERS_FILE = 'muted_users.json'
 USERS_FILE = 'users.json'
 WELCOME_MSGS_FILE = 'welcome_msgs.json'
@@ -435,71 +435,139 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
     if isinstance(update, Update) and update.effective_message:
         await update.effective_message.reply_text("حدث خطأ غير متوقع. يرجى المحاولة لاحقًا.")
 
+# أوامر المشرف (تطبيقات أولية)
+async def mutelist_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != AUTHORIZED_USER_ID:
+        await update.message.reply_text("You are not authorized to use this command.")
+        return
+    if not muted_users:
+        await update.message.reply_text("No muted users.")
+    else:
+        muted_list = "\n".join(map(str, muted_users))
+        await update.message.reply_text(f"Muted users:\n{muted_list}")
+
+async def muteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != AUTHORIZED_USER_ID:
+        await update.message.reply_text("You are not authorized to use this command.")
+        return
+    try:
+        args = context.args
+        if not args:
+            await update.message.reply_text("Please provide a user ID to mute.")
+            return
+        user_id = int(args[0])
+        muted_users.add(user_id)
+        save_muted_users(muted_users)
+        await update.message.reply_text(f"User {user_id} has been muted.")
+    except Exception as e:
+        await update.message.reply_text("Error muting user.")
+        logger.error(e)
+
+async def unmuteid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != AUTHORIZED_USER_ID:
+        await update.message.reply_text("You are not authorized to use this command.")
+        return
+    try:
+        args = context.args
+        if not args:
+            await update.message.reply_text("Please provide a user ID to unmute.")
+            return
+        user_id = int(args[0])
+        if user_id in muted_users:
+            muted_users.remove(user_id)
+            save_muted_users(muted_users)
+            await update.message.reply_text(f"User {user_id} has been unmuted.")
+        else:
+            await update.message.reply_text("User not found in muted list.")
+    except Exception as e:
+        await update.message.reply_text("Error unmuting user.")
+        logger.error(e)
+
+async def hey_remove_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != AUTHORIZED_USER_ID:
+        await update.message.reply_text("You are not authorized to use this command.")
+        return
+    try:
+        args = context.args
+        if not args:
+            await update.message.reply_text("Please provide a user ID for removal of custom greeting.")
+            return
+        user_id = int(args[0])
+        if user_id in override_welcome_messages:
+            del override_welcome_messages[user_id]
+            save_override_welcomes(override_welcome_messages)
+            await update.message.reply_text(f"Custom greeting for user {user_id} has been removed.")
+        else:
+            await update.message.reply_text("No custom greeting found for that user.")
+    except Exception as e:
+        await update.message.reply_text("Error removing custom greeting.")
+        logger.error(e)
+
 def main():
     BOT_TOKEN = os.environ.get("BOT_TOKEN")
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN environment variable not set!")
         return
 
-    # Correct application initialization
     app = ApplicationBuilder() \
         .token(BOT_TOKEN) \
         .drop_pending_updates(True) \
         .build()
-mute_filter = MuteFilter()
-app.add_handler(MessageHandler(mute_filter, handle_muted), group=0)
 
-# Main conversation handler
-conv_handler = ConversationHandler(
-    entry_points=[CommandHandler('start', start)],
-    states={
-        CHOOSING_OPTION: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, choice_handler),
-        ],
-        GET_THEORETICAL_CREDIT: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, theoretical_credit),
-        ],
-        GET_PRACTICAL_CREDIT: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, practical_credit),
-        ],
-        SEND_MESSAGE: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, send_message_handler),
-        ],
-        BLOK_MATERIA: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, blok_materia),
-        ],
-        BLOK_TOTAL: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, blok_total),
-        ],
-        BLOK_TAKEN: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, blok_taken),
-        ],
-    },
-    fallbacks=[
-        CommandHandler('cancel', cancel),
-        CommandHandler('start', start),
-    ],
-    allow_reentry=True
-)
+    # إضافة handler للمستخدمين المكتومين
+    mute_filter = MuteFilter()
+    app.add_handler(MessageHandler(mute_filter, handle_muted), group=0)
 
-# Admin commands
-app.add_handler(CommandHandler('active', active_command))
-app.add_handler(CommandHandler('help', help_command))
-app.add_handler(CommandHandler('mutelist', mutelist_command))
-app.add_handler(CommandHandler('muteid', muteid_command))
-app.add_handler(CommandHandler('unmuteid', unmuteid_command))
-app.add_handler(CommandHandler('hey_r', hey_remove_command))
+    # Conversation handler الرئيسي
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+        states={
+            CHOOSING_OPTION: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, choice_handler),
+            ],
+            GET_THEORETICAL_CREDIT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, theoretical_credit),
+            ],
+            GET_PRACTICAL_CREDIT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, practical_credit),
+            ],
+            SEND_MESSAGE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, send_message_handler),
+            ],
+            BLOK_MATERIA: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, blok_materia),
+            ],
+            BLOK_TOTAL: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, blok_total),
+            ],
+            BLOK_TAKEN: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, blok_taken),
+            ],
+        },
+        fallbacks=[
+            CommandHandler('cancel', cancel),
+            CommandHandler('start', start),
+        ],
+        allow_reentry=True
+    )
+    app.add_handler(conv_handler)
 
-# Fallback handler
-app.add_handler(MessageHandler(filters.ALL, default_handler))
+    # أوامر المشرف
+    app.add_handler(CommandHandler('active', active_command))
+    app.add_handler(CommandHandler('help', help_command))
+    app.add_handler(CommandHandler('mutelist', mutelist_command))
+    app.add_handler(CommandHandler('muteid', muteid_command))
+    app.add_handler(CommandHandler('unmuteid', unmuteid_command))
+    app.add_handler(CommandHandler('hey_r', hey_remove_command))
 
-# Error handler
-app.add_error_handler(error_handler)
+    # Fallback handler
+    app.add_handler(MessageHandler(filters.ALL, default_handler))
 
-# Register conversation handler
-app.add_handler(conv_handler)
+    # Error handler
+    app.add_error_handler(error_handler)
 
-logger.info("Starting bot...")
-app.run_polling()
+    logger.info("Starting bot...")
+    app.run_polling()
 
-if name == 'main': main()
+if __name__ == '__main__':
+    main()
