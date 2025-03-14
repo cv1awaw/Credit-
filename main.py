@@ -511,7 +511,6 @@ def main():
 
     app = ApplicationBuilder() \
         .token(BOT_TOKEN) \
-        .drop_pending_updates(True) \
         .build()
 
     # إضافة handler للمستخدمين المكتومين
@@ -567,7 +566,7 @@ def main():
     app.add_error_handler(error_handler)
 
     logger.info("Starting bot...")
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
     main()
