@@ -4,7 +4,7 @@ import json
 import asyncio
 from datetime import datetime, timedelta
 
-from telegram import Bot, Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -27,11 +27,7 @@ CHOOSING_OPTION, GET_THEORETICAL_CREDIT, GET_PRACTICAL_CREDIT, SEND_MESSAGE = ra
 BLOK_MATERIA, BLOK_TOTAL, BLOK_TAKEN = range(5, 8)
 USER_ID_WAITING_FOR_MESSAGE = 10
 BROADCAST_ASK_MESSAGE, BROADCAST_CONFIRMATION = range(20, 22)
-
-# For /user_m
 USER_M_WAITING_FOR_MESSAGE = 30
-
-# For /hey
 HEY_WAITING_FOR_MESSAGE = 999
 
 # IDs
@@ -342,6 +338,93 @@ async def send_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     await show_main_menu(update, context)
     return CHOOSING_OPTION
 
+# إضافات أوامر المشرف
+
+async def hey_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.effective_user.id != AUTHORIZED_USER_ID:
+        await update.message.reply_text("❌ أنت غير مصرح لك باستخدام هذا الأمر.")
+        return ConversationHandler.END
+    args = context.args
+    if not args:
+        await update.message.reply_text("استخدم: /hey <user_id>")
+        return ConversationHandler.END
+    try:
+        target_id = int(args[0])
+    except ValueError:
+        await update.message.reply_text("الرجاء إدخال معرف مستخدم صالح (رقم).")
+        return ConversationHandler.END
+    context.user_data['hey_target'] = target_id
+    await update.message.reply_text("أرسل رسالة الترحيب المخصصة الآن:")
+    return HEY_WAITING_FOR_MESSAGE
+
+async def hey_message_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    target = context.user_data.get('hey_target')
+    text = update.message.text or ""
+    override_welcome_messages[target] = text
+    save_override_welcomes(override_welcome_messages)
+    await update.message.reply_text(f"✔ تم تعيين الترحيب المخصص للمستخدم {target}.")
+    return ConversationHandler.END
+
+async def user_m_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.effective_user.id != AUTHORIZED_USER_ID:
+        await update.message.reply_text("❌ أنت غير مصرح لك باستخدام هذا الأمر.")
+        return ConversationHandler.END
+    args = context.args
+    if not args:
+        await update.message.reply_text("استخدم: /user_m <user_id>")
+        return ConversationHandler.END
+    try:
+        target_id = int(args[0])
+    except ValueError:
+        await update.message.reply_text("الرجاء إدخال معرف مستخدم صالح (رقم).")
+        return ConversationHandler.END
+    context.user_data['user_m_target'] = target_id
+    await update.message.reply_text(f"أرسل الرسالة التي تريد إرسالها للمستخدم {target_id}:")
+    return USER_M_WAITING_FOR_MESSAGE
+
+async def user_m_message_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    target = context.user_data.get('user_m_target')
+    text = update.message.text or ""
+    if text:
+        try:
+            await context.bot.send_message(chat_id=target, text=text)
+            await update.message.reply_text(f"✔ تم إرسال الرسالة إلى المستخدم {target}.")
+        except Exception as e:
+            logger.error(f"Failed to send user_m message: {e}")
+            await update.message.reply_text("❌ حدث خطأ أثناء إرسال الرسالة.")
+    else:
+        await update.message.reply_text("❌ لا توجد رسالة لإرسال.")
+    return ConversationHandler.END
+
+async def broadcast_ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.effective_user.id != AUTHORIZED_USER_ID:
+        await update.message.reply_text("❌ أنت غير مصرح لك باستخدام هذا الأمر.")
+        return ConversationHandler.END
+    await update.message.reply_text("أرسل الرسالة التي تريد بثها لجميع المستخدمين:")
+    return BROADCAST_ASK_MESSAGE
+
+async def broadcast_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text or ""
+    context.user_data['broadcast_message'] = text
+    await update.message.reply_text("هل أنت متأكد من إرسال هذه الرسالة لجميع المستخدمين؟ (نعم/لا)")
+    return BROADCAST_CONFIRMATION
+
+async def broadcast_execute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    confirmation = (update.message.text or "").strip().lower()
+    message = context.user_data.get('broadcast_message', "")
+    if confirmation in ['نعم', 'y', 'yes']:
+        count = 0
+        for user_id in known_users.keys():
+            try:
+                await context.bot.send_message(chat_id=user_id, text=message)
+                count += 1
+            except Exception as e:
+                logger.error(f"Failed to broadcast to {user_id}: {e}")
+        await update.message.reply_text(f"✔ تم إرسال الرسالة إلى {count} مستخدمين.")
+    else:
+        await update.message.reply_text("❌ تم إلغاء البث.")
+    return ConversationHandler.END
+
 async def active_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
@@ -377,7 +460,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             "/muteid <userid> - كتم مستخدم\n"
             "/unmuteid <userid> - إلغاء كتم\n"
             "/mutelist - عرض المكتومين\n"
-            "/user_id - إرسال رسالة خاصة\n"
             "/user_m <userid> - إرسال رسالة لمستخدم\n"
             "/hey <userid> - تعيين ترحيب مخصص\n"
             "/hey_r <userid> - حذف ترحيب مخصص\n"
@@ -435,7 +517,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
     if isinstance(update, Update) and update.effective_message:
         await update.effective_message.reply_text("حدث خطأ غير متوقع. يرجى المحاولة لاحقًا.")
 
-# أوامر المشرف (تطبيقات أولية)
+# أوامر المشرف الأساسية (existing)
 async def mutelist_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != AUTHORIZED_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
@@ -513,11 +595,11 @@ def main():
         .token(BOT_TOKEN) \
         .build()
 
-    # إضافة handler للمستخدمين المكتومين
+    # فلتر للمستخدمين المكتومين
     mute_filter = MuteFilter()
     app.add_handler(MessageHandler(mute_filter, handle_muted), group=0)
 
-    # Conversation handler الرئيسي
+    # Conversation handler الرئيسي للقوائم
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
@@ -551,7 +633,52 @@ def main():
     )
     app.add_handler(conv_handler)
 
-    # أوامر المشرف
+    # Conversation handler لـ /hey
+    app.add_handler(
+        ConversationHandler(
+            entry_points=[CommandHandler('hey', hey_command)],
+            states={
+                HEY_WAITING_FOR_MESSAGE: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, hey_message_received)
+                ],
+            },
+            fallbacks=[CommandHandler('cancel', cancel)],
+            allow_reentry=True
+        )
+    )
+
+    # Conversation handler لـ /user_m
+    app.add_handler(
+        ConversationHandler(
+            entry_points=[CommandHandler('user_m', user_m_command)],
+            states={
+                USER_M_WAITING_FOR_MESSAGE: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, user_m_message_received)
+                ],
+            },
+            fallbacks=[CommandHandler('cancel', cancel)],
+            allow_reentry=True
+        )
+    )
+
+    # Conversation handler لـ /new (بث رسالة)
+    app.add_handler(
+        ConversationHandler(
+            entry_points=[CommandHandler('new', broadcast_ask_command)],
+            states={
+                BROADCAST_ASK_MESSAGE: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_confirm)
+                ],
+                BROADCAST_CONFIRMATION: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_execute)
+                ],
+            },
+            fallbacks=[CommandHandler('cancel', cancel)],
+            allow_reentry=True
+        )
+    )
+
+    # أوامر المشرف الثابتة
     app.add_handler(CommandHandler('active', active_command))
     app.add_handler(CommandHandler('help', help_command))
     app.add_handler(CommandHandler('mutelist', mutelist_command))
