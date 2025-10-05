@@ -1,13 +1,18 @@
 # server.py
-import os, threading
+import os
+import threading
+import asyncio
 from flask import Flask
 
 def start_bot():
-    # Import your script and explicitly call main()
-    import main as bot
-    bot.main()  # <-- your script has a main() that starts Application.run_polling()
+    # Create an event loop for this thread so PTB can run polling
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 
-# run the bot in a background thread so the web server can answer health checks
+    import main as bot
+    # Your main() builds Application and calls run_polling()
+    bot.main()
+
 threading.Thread(target=start_bot, daemon=True).start()
 
 app = Flask(__name__)
@@ -17,6 +22,6 @@ def health():
     return "OK", 200
 
 if __name__ == "__main__":
-    # Koyeb's default health-check port is 8000
+    # Koyeb health check uses port 8000 by default
     port = int(os.environ.get("PORT", 8000))
     app.run(host="0.0.0.0", port=port)
