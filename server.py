@@ -3,15 +3,15 @@ import os, threading
 from flask import Flask
 
 def start_bot():
-    import main  # this starts your Telegram bot
-    # If your bot doesn't auto-start on import, expose a function like main.run() and call it here.
+    import main            # if your bot doesn’t auto-start on import, expose main.run() and call it here
+    # main.run()  # <- uncomment and use if you have a run() function
 
 threading.Thread(target=start_bot, daemon=True).start()
 
 app = Flask(__name__)
 
-@app.route("/")
-def home():
+@app.get("/")
+def health():
     return "OK", 200
 
 if __name__ == "__main__":
